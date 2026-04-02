@@ -74,10 +74,31 @@ http://localhost:8080
 - `mysql` 프로필 실행 시 Docker Compose의 MySQL을 사용합니다.
 - 애플리케이션은 샘플 데이터를 자동 적재하지 않습니다.
 - 과제에서 제시한 샘플 시나리오는 통합테스트가 시작될 때마다 직접 구성해 검증합니다.
-- 수동 확인이 필요할 경우 판매/취소 등록 API로 동일 데이터를 직접 입력할 수 있습니다.
+- 수동 확인이 필요할 경우 `크리에이터 생성 -> 강의 생성 -> 판매 등록 -> 취소 등록` 순서로 동일 데이터를 직접 입력할 수 있습니다.
 
 ## API 목록 및 예시
-### 1. 판매 등록
+### 1. 크리에이터 등록
+`POST /api/creators`
+
+```json
+{
+  "creatorId": "creator-1",
+  "name": "김강사"
+}
+```
+
+### 2. 강의 등록
+`POST /api/courses`
+
+```json
+{
+  "courseId": "course-1",
+  "creatorId": "creator-1",
+  "title": "Spring Boot 입문"
+}
+```
+
+### 3. 판매 등록
 `POST /api/sales`
 
 ```json
@@ -90,7 +111,7 @@ http://localhost:8080
 }
 ```
 
-### 2. 취소 등록
+### 4. 취소 등록
 `POST /api/sales/{saleId}/cancellations`
 
 ```json
@@ -101,13 +122,13 @@ http://localhost:8080
 }
 ```
 
-### 3. 판매 내역 조회
+### 5. 판매 내역 조회
 `GET /api/creators/{creatorId}/sales?startDate=2025-03-01&endDate=2025-03-31`
 
-### 4. 월별 정산 조회
+### 6. 월별 정산 조회
 `GET /api/creators/{creatorId}/settlements/monthly?yearMonth=2025-03`
 
-### 5. 운영자용 기간 집계 조회
+### 7. 운영자용 기간 집계 조회
 `GET /api/admin/settlements?startDate=2025-03-01&endDate=2025-03-31`
 
 ## 데이터 모델 설명
@@ -159,7 +180,7 @@ http://localhost:8080
 ```
 
 수동 검증:
-- 필요한 데이터는 판매/취소 등록 API로 직접 입력한 뒤 월별 정산, 월 경계 취소, 빈 월 조회, 잘못된 요청 형식을 확인할 수 있습니다.
+- 필요한 데이터는 `POST /api/creators`, `POST /api/courses`, `POST /api/sales`, `POST /api/sales/{saleId}/cancellations` 순서로 직접 입력한 뒤 월별 정산, 월 경계 취소, 빈 월 조회, 잘못된 요청 형식을 확인할 수 있습니다.
 - 필요 시 MySQL 컨테이너를 띄운 뒤 `--spring.profiles.active=mysql`로 동일 API를 검증할 수 있습니다.
 - MySQL 기준으로도 샘플 정산 조회 및 판매 등록 API를 직접 호출해 동작을 확인했습니다.
 
