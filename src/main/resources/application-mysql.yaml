@@ -1,0 +1,15 @@
+spring:
+  datasource:
+    url: ${MYSQL_URL:jdbc:mysql://localhost:3306/settlement?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Seoul}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: ${MYSQL_USERNAME:settlement}
+    password: ${MYSQL_PASSWORD:settlement}
+  jpa:
+    hibernate:
+      ddl-auto: create
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+  h2:
+    console:
+      enabled: false
