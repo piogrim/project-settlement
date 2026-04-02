@@ -1,1 +1,175 @@
-# project-settlement
+# Creator Settlement API
+
+## 프로젝트 개요
+크리에이터가 판매한 강의의 결제/취소 내역을 관리하고, 월별 정산 금액과 운영자용 기간 집계를 제공하는 Spring Boot 기반 API입니다.
+
+핵심 기능은 다음과 같습니다.
+- 판매 내역 등록
+- 취소/환불 내역 등록
+- 크리에이터별 판매 내역 조회
+- 크리에이터별 월별 정산 조회
+- 운영자용 기간별 전체 정산 집계 조회
+
+## 기술 스택
+- Java 25
+- Spring Boot 4.0.5
+- Spring Web MVC
+- Spring Data JPA
+- Hibernate / Jakarta Validation
+- H2 Database
+- MySQL 8.0 (Docker Compose 선택 실행)
+- Gradle
+- Lombok
+
+## 실행 방법
+### 1. 기본 실행(H2)
+
+1. 애플리케이션 실행
+
+```bash
+./gradlew bootRun
+```
+
+2. 실행 특징
+- 별도 DB 준비 없이 H2 메모리 DB로 바로 실행됩니다.
+- 애플리케이션 시작 시 `SampleDataInitializer`를 통해 샘플 데이터가 자동 적재됩니다.
+- 과제 제출 및 빠른 로컬 확인은 이 방식을 기본으로 사용합니다.
+
+3. H2 콘솔
+
+```text
+URL: http://localhost:8080/h2-console
+JDBC URL: jdbc:h2:mem:settlement
+Username: sa
+Password: (빈 값)
+```
+
+### 2. MySQL 실행(Docker Compose)
+
+1. MySQL 컨테이너 실행
+
+```bash
+docker compose up -d
+```
+
+2. `mysql` 프로필로 애플리케이션 실행
+
+```bash
+./gradlew bootRun --args='--spring.profiles.active=mysql'
+```
+
+3. 참고 사항
+- MySQL 실행 설정은 [docker-compose.yml](/Users/seongbb/Desktop/라이브클래스/settlement/docker-compose.yml), [application-mysql.yaml](/Users/seongbb/Desktop/라이브클래스/settlement/src/main/resources/application-mysql.yaml)에 분리되어 있습니다.
+- 기본 실행은 H2, 선택 실행은 MySQL(Docker Compose) 방식으로 구성했습니다.
+- 로컬 Docker 환경에 따라 MySQL 이미지 초기화 제약이 있을 수 있어, 제출/기본 실행은 H2 기준으로도 바로 가능하도록 유지했습니다.
+
+### 3. 기본 포트
+
+```text
+http://localhost:8080
+```
+
+### 4. 샘플 데이터
+- 애플리케이션 시작 시 샘플 데이터가 자동 적재됩니다.
+- 기본 실행은 H2 메모리 DB를 사용합니다.
+- `mysql` 프로필 실행 시 Docker Compose의 MySQL을 사용합니다.
+
+## API 목록 및 예시
+### 1. 판매 등록
+`POST /api/sales`
+
+```json
+{
+  "saleId": "sale-api-1",
+  "courseId": "course-1",
+  "studentId": "student-1",
+  "amount": 50000,
+  "paidAt": "2025-03-30T15:00:00+09:00"
+}
+```
+
+### 2. 취소 등록
+`POST /api/sales/{saleId}/cancellations`
+
+```json
+{
+  "cancellationId": "cancel-api-1",
+  "refundAmount": 10000,
+  "canceledAt": "2025-03-31T18:00:00+09:00"
+}
+```
+
+### 3. 판매 내역 조회
+`GET /api/creators/{creatorId}/sales?startDate=2025-03-01&endDate=2025-03-31`
+
+### 4. 월별 정산 조회
+`GET /api/creators/{creatorId}/settlements/monthly?yearMonth=2025-03`
+
+### 5. 운영자용 기간 집계 조회
+`GET /api/admin/settlements?startDate=2025-03-01&endDate=2025-03-31`
+
+## 데이터 모델 설명
+- `Creator`
+  - 크리에이터 정보
+- `Course`
+  - 강의 정보
+  - 하나의 크리에이터에 속함
+- `SaleRecord`
+  - 판매 내역
+  - 강의, 수강생 ID, 결제 금액, 결제 시각을 가짐
+- `SaleCancellation`
+  - 취소/환불 내역
+  - 원본 판매 내역을 참조하고 환불 금액, 취소 시각을 가짐
+
+## 요구사항 해석 및 가정
+- 판매는 `paidAt` 기준으로 집계합니다.
+- 취소는 `canceledAt` 기준으로 집계합니다.
+- 월 경계와 기간 계산은 모두 KST 기준으로 처리하며, 내부 구현은 `시작 시각 이상` + `다음 경계 시각 미만` 방식으로 계산했습니다.
+- 수수료율은 현재 고정값 20%입니다.
+- 정산 조회는 별도 정산 테이블을 저장하지 않고, 판매/취소 데이터를 기준으로 조회 시점에 계산하도록 해석했습니다.
+- 환불만 있는 달은 수수료를 음수로 계산하지 않고 `0원`으로 처리했습니다.
+- 판매 목록 조회의 기간 필터는 선택값으로 해석하여, 시작일 또는 종료일 없이도 조회할 수 있게 구현했습니다.
+- 샘플 JSON에는 취소 데이터가 포함되어 있지 않아, 검증 시나리오에 맞는 `cancel-1`, `cancel-2`, `cancel-3` 데이터를 별도로 적재했습니다.
+
+## 설계 결정과 이유
+- 판매와 취소를 하나의 이벤트 테이블로 합치지 않고 `SaleRecord`와 `SaleCancellation`으로 분리했습니다.
+  - 판매와 취소의 집계 기준 시각이 다르기 때문입니다.
+- 필수 구현 범위에서는 `Settlement` 엔티티를 별도로 두지 않고, 정산 로직을 서비스 계층에서 계산하도록 구성했습니다.
+  - 요구사항의 핵심이 정산 규칙과 집계 정확성이라고 판단했고, 상태 관리/정산 확정은 선택 구현 범위로 보았습니다.
+- 판매는 `SaleCommandService`, `SaleQueryService`로 나누고, 정산은 크리에이터용/운영자용 조회 서비스로 분리했습니다.
+  - 등록/취소와 조회, 일반 사용자 조회와 운영자 집계의 책임이 다르다고 보았기 때문입니다.
+- KST 기준 기간 계산과 정산 금액 계산은 공통 컴포넌트로 분리했습니다.
+  - 기간 계산 정책과 수수료/순매출 계산 규칙을 한 곳에서 관리하기 위해서입니다.
+- 조회 성능과 N+1 문제를 줄이기 위해 repository에 `EntityGraph`를 사용했습니다.
+- 입력값 검증은 Bean Validation 어노테이션으로 옮기고, 존재 여부/환불 한도 같은 비즈니스 검증만 서비스에 남겼습니다.
+
+## 테스트 실행 방법
+자동 테스트 실행:
+
+```bash
+./gradlew test
+```
+
+컴파일 확인:
+
+```bash
+./gradlew compileJava
+```
+
+수동 검증:
+- 샘플 데이터 적재 후 API 호출로 월별 정산, 월 경계 취소, 빈 월 조회, 잘못된 요청 형식을 확인했습니다.
+- 필요 시 MySQL 컨테이너를 띄운 뒤 `--spring.profiles.active=mysql`로 동일 API를 검증할 수 있습니다.
+- MySQL 기준으로도 샘플 정산 조회 및 판매 등록 API를 직접 호출해 동작을 확인했습니다.
+
+## 미구현 / 제약사항
+- 운영자 집계는 DB 집계 쿼리 대신 애플리케이션 레벨에서 creator별로 누적 계산합니다.
+- MySQL 프로필은 로컬 검증용이며, 운영 배포 설정까지 분리한 상태는 아닙니다.
+- 선택 구현 항목(정산 상태 관리, 중복 정산 방지, CSV/엑셀 다운로드, 수수료율 변경 이력)은 현재 브랜치 범위에서 제외했습니다.
+
+## AI 활용 범위
+- 패키지 구조 정리
+- 엔티티 / 서비스 / 컨트롤러 / 예외 처리 초안 작성
+- 서비스 분리, 공통 컴포넌트 분리, 가독성 리팩토링이 필요한 부분은 AI에 직접 특정 부분을 수정해달라 요청 후, 다시 검토하여 수정했습니다.
+- 샘플 데이터 적재 코드 작성
+- Docker Compose 기반 MySQL 실행 초안 작성
+- README 초안 작성
