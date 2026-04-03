@@ -29,6 +29,6 @@ class SettlementExportIntegrationTest extends ApiIntegrationTestSupport {
                 .andExpect(content().string(containsString("2025-03-01,2025-03-31,creator-1,김강사,260000,110000,150000,30000,120000,4,2")))
                 .andExpect(content().string(containsString("2025-03-01,2025-03-31,creator-2,이강사,60000,0,60000,12000,48000,1,0")))
                 .andExpect(content().string(containsString("2025-03-01,2025-03-31,creator-3,박강사,0,0,0,0,0,0,0")))
-                .andExpect(content().string(containsString("2025-03-01,2025-03-31,TOTAL,전체 합계,,,,,168000,,")));
+                .andExpect(content().string(containsString("2025-03-01,2025-03-31,TOTAL,전체 합계,320000,110000,210000,42000,168000,5,2")));
     }
 }

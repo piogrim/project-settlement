@@ -2,6 +2,7 @@ package com.creator.settlement.settlement.support;
 
 import com.creator.settlement.settlement.dto.AdminSettlementSummaryResult;
 import com.creator.settlement.settlement.dto.CreatorSettlementSummaryItem;
+import java.math.BigDecimal;
 import java.util.StringJoiner;
 import org.springframework.stereotype.Component;
 
@@ -53,18 +54,47 @@ public class SettlementCsvExporter {
     }
 
     private String totalRow(AdminSettlementSummaryResult summary) {
+        Totals totals = calculateTotals(summary);
+
         return join(
                 summary.startDate(),
                 summary.endDate(),
                 "TOTAL",
                 "전체 합계",
-                "",
-                "",
-                "",
-                "",
+                totals.totalSalesAmount(),
+                totals.totalRefundAmount(),
+                totals.netSalesAmount(),
+                totals.platformFeeAmount(),
                 summary.totalSettlementAmount(),
-                "",
-                ""
+                totals.saleCount(),
+                totals.cancelCount()
+        );
+    }
+
+    private Totals calculateTotals(AdminSettlementSummaryResult summary) {
+        BigDecimal totalSalesAmount = BigDecimal.ZERO;
+        BigDecimal totalRefundAmount = BigDecimal.ZERO;
+        BigDecimal netSalesAmount = BigDecimal.ZERO;
+        BigDecimal platformFeeAmount = BigDecimal.ZERO;
+        long saleCount = 0;
+        long cancelCount = 0;
+
+        for (CreatorSettlementSummaryItem item : summary.items()) {
+            totalSalesAmount = totalSalesAmount.add(item.totalSalesAmount());
+            totalRefundAmount = totalRefundAmount.add(item.totalRefundAmount());
+            netSalesAmount = netSalesAmount.add(item.netSalesAmount());
+            platformFeeAmount = platformFeeAmount.add(item.platformFeeAmount());
+            saleCount += item.saleCount();
+            cancelCount += item.cancelCount();
+        }
+
+        return new Totals(
+                totalSalesAmount,
+                totalRefundAmount,
+                netSalesAmount,
+                platformFeeAmount,
+                saleCount,
+                cancelCount
         );
     }
 
@@ -86,5 +116,15 @@ public class SettlementCsvExporter {
             return "\"" + text.replace("\"", "\"\"") + "\"";
         }
         return text;
+    }
+
+    private record Totals(
+            BigDecimal totalSalesAmount,
+            BigDecimal totalRefundAmount,
+            BigDecimal netSalesAmount,
+            BigDecimal platformFeeAmount,
+            long saleCount,
+            long cancelCount
+    ) {
     }
 }
