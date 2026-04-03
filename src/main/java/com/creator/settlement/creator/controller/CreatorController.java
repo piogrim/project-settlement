@@ -3,6 +3,7 @@ package com.creator.settlement.creator.controller;
 import com.creator.settlement.creator.dto.CreateCreatorRequest;
 import com.creator.settlement.creator.dto.CreatorResult;
 import com.creator.settlement.creator.service.CreatorCommandService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,7 +20,7 @@ public class CreatorController {
     private final CreatorCommandService creatorCommandService;
 
     @PostMapping("/creators")
-    public ResponseEntity<CreatorResult> registerCreator(@RequestBody CreateCreatorRequest request) {
+    public ResponseEntity<CreatorResult> registerCreator(@Valid @RequestBody CreateCreatorRequest request) {
         CreatorResult result = creatorCommandService.registerCreator(request.toCommand());
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
