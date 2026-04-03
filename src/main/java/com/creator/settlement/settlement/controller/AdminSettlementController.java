@@ -5,8 +5,13 @@ import com.creator.settlement.settlement.dto.AdminSettlementSummaryResult;
 import com.creator.settlement.settlement.dto.SettlementResult;
 import com.creator.settlement.settlement.service.AdminSettlementQueryService;
 import com.creator.settlement.settlement.service.SettlementCommandService;
+import com.creator.settlement.settlement.support.SettlementCsvExporter;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,6 +27,7 @@ public class AdminSettlementController {
 
     private final AdminSettlementQueryService adminSettlementQueryService;
     private final SettlementCommandService settlementCommandService;
+    private final SettlementCsvExporter settlementCsvExporter;
 
     @GetMapping
     public AdminSettlementSummaryResult getSettlementSummary(
@@ -35,6 +41,31 @@ public class AdminSettlementController {
         return adminSettlementQueryService.getAdminSettlementSummary(
                 new AdminSettlementSummaryQuery(startDate, endDate)
         );
+    }
+
+    @GetMapping("/export/csv")
+    public ResponseEntity<String> exportSettlementSummaryAsCsv(
+            @RequestParam
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate startDate,
+            @RequestParam
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate endDate
+    ) {
+        AdminSettlementSummaryResult summary = adminSettlementQueryService.getAdminSettlementSummary(
+                new AdminSettlementSummaryQuery(startDate, endDate)
+        );
+        String csv = settlementCsvExporter.export(summary);
+
+        String fileName = "settlement-summary-%s-to-%s.csv".formatted(startDate, endDate);
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename(fileName)
+                        .build()
+                        .toString())
+                .contentType(MediaType.parseMediaType("text/csv;charset=UTF-8"))
+                .body(csv);
     }
 
     @PostMapping("/{settlementId}/confirm")
