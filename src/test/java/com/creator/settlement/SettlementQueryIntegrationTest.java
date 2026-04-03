@@ -1,7 +1,6 @@
 package com.creator.settlement;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -42,7 +41,7 @@ class SettlementQueryIntegrationTest extends ApiIntegrationTestSupport {
                         .param("yearMonth", "2025-03"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("충돌"))
-                .andExpect(jsonPath("$.message").value("이전 월 정산은 먼저 생성해야 조회할 수 있습니다."));
+                .andExpect(jsonPath("$.message").value("이전 월 정산을 먼저 생성해야 조회할 수 있습니다."));
 
         createCreatorSettlement("creator-1", "settlement-creator-1-2025-03", "2025-03")
                 .andExpect(status().isCreated())
