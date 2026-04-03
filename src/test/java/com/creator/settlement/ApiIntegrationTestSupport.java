@@ -11,9 +11,12 @@ import com.creator.settlement.sale.domain.SaleCancellation;
 import com.creator.settlement.sale.domain.SaleRecord;
 import com.creator.settlement.sale.repository.SaleCancellationRepository;
 import com.creator.settlement.sale.repository.SaleRecordRepository;
+import com.creator.settlement.settlement.domain.SettlementFeeRate;
 import com.creator.settlement.settlement.repository.SettlementRepository;
+import com.creator.settlement.settlement.repository.SettlementFeeRateRepository;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.MockMvc;
@@ -42,6 +45,9 @@ abstract class ApiIntegrationTestSupport {
     @Autowired
     private SettlementRepository settlementRepository;
 
+    @Autowired
+    private SettlementFeeRateRepository settlementFeeRateRepository;
+
     @BeforeEach
     void setUpRequiredScenario() {
         clearDatabase();
@@ -50,6 +56,7 @@ abstract class ApiIntegrationTestSupport {
 
     private void clearDatabase() {
         settlementRepository.deleteAllInBatch();
+        settlementFeeRateRepository.deleteAllInBatch();
         saleCancellationRepository.deleteAllInBatch();
         saleRecordRepository.deleteAllInBatch();
         courseRepository.deleteAllInBatch();
@@ -132,5 +139,14 @@ abstract class ApiIntegrationTestSupport {
                           "settlementMonth": "%s"
                         }
                         """.formatted(settlementId, settlementMonth)));
+    }
+
+    protected SettlementFeeRate saveFeeRateHistory(String settlementFeeRateId, String effectiveFrom, String feeRate) {
+        return settlementFeeRateRepository.save(SettlementFeeRate.builder()
+                .id(settlementFeeRateId)
+                .effectiveFrom(YearMonth.parse(effectiveFrom))
+                .feeRate(new BigDecimal(feeRate))
+                .createdAt(kstClock.now())
+                .build());
     }
 }

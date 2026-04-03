@@ -1,5 +1,6 @@
 package com.creator.settlement.settlement.service;
 
+import com.creator.settlement.common.time.KstClock;
 import com.creator.settlement.common.time.KstPeriodResolver;
 import com.creator.settlement.creator.domain.Creator;
 import com.creator.settlement.creator.repository.CreatorRepository;
@@ -10,10 +11,13 @@ import com.creator.settlement.sale.repository.SaleRecordRepository;
 import com.creator.settlement.settlement.dto.AdminSettlementSummaryQuery;
 import com.creator.settlement.settlement.dto.AdminSettlementSummaryResult;
 import com.creator.settlement.settlement.dto.CreatorSettlementSummaryItem;
+import com.creator.settlement.settlement.support.AdminSettlementAccumulator;
 import com.creator.settlement.settlement.support.SettlementCalculator;
+import com.creator.settlement.settlement.support.SettlementFeeRateResolver;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
+import java.time.YearMonth;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,14 +36,16 @@ public class AdminSettlementQueryService {
     private final SaleRecordRepository saleRecordRepository;
     private final SaleCancellationRepository saleCancellationRepository;
     private final SettlementCalculator settlementCalculator;
+    private final SettlementFeeRateResolver settlementFeeRateResolver;
     private final KstPeriodResolver kstPeriodResolver;
+    private final KstClock kstClock;
 
     public AdminSettlementSummaryResult getAdminSettlementSummary(
             @NotNull @Valid AdminSettlementSummaryQuery query
     ) {
         KstPeriodResolver.KstRange range =
                 kstPeriodResolver.dateRange(query.startDate(), query.endDate());
-        Map<String, CreatorSettlementAccumulator> accumulators = initializeAccumulators(
+        Map<String, AdminSettlementAccumulator> accumulators = initializeAccumulators(
                 creatorRepository.findAllByOrderByIdAsc()
         );
 
@@ -52,19 +58,19 @@ public class AdminSettlementQueryService {
         return new AdminSettlementSummaryResult(query.startDate(), query.endDate(), items, totalSettlementAmount);
     }
 
-    private Map<String, CreatorSettlementAccumulator> initializeAccumulators(List<Creator> creators) {
-        Map<String, CreatorSettlementAccumulator> accumulators = new LinkedHashMap<>();
+    private Map<String, AdminSettlementAccumulator> initializeAccumulators(List<Creator> creators) {
+        Map<String, AdminSettlementAccumulator> accumulators = new LinkedHashMap<>();
         for (Creator creator : creators) {
             accumulators.put(
                     creator.getId(),
-                    new CreatorSettlementAccumulator(creator.getId(), creator.getName())
+                    new AdminSettlementAccumulator(creator.getId(), creator.getName())
             );
         }
         return accumulators;
     }
 
     private void accumulateSales(
-            Map<String, CreatorSettlementAccumulator> accumulators,
+            Map<String, AdminSettlementAccumulator> accumulators,
             KstPeriodResolver.KstRange range
     ) {
         List<SaleRecord> saleRecords = saleRecordRepository.findAllByPaidAtGreaterThanEqualAndPaidAtLessThan(
@@ -74,15 +80,18 @@ public class AdminSettlementQueryService {
 
         for (SaleRecord saleRecord : saleRecords) {
             String creatorId = saleRecord.getCourse().getCreator().getId();
-            CreatorSettlementAccumulator accumulator = accumulators.get(creatorId);
+            AdminSettlementAccumulator accumulator = accumulators.get(creatorId);
             if (accumulator != null) {
-                accumulator.addSale(saleRecord.getAmount());
+                accumulator.addSale(
+                        YearMonth.from(saleRecord.getPaidAt().atZoneSameInstant(kstClock.zoneId())),
+                        saleRecord.getAmount()
+                );
             }
         }
     }
 
     private void accumulateCancellations(
-            Map<String, CreatorSettlementAccumulator> accumulators,
+            Map<String, AdminSettlementAccumulator> accumulators,
             KstPeriodResolver.KstRange range
     ) {
         List<SaleCancellation> saleCancellations = saleCancellationRepository
@@ -90,18 +99,21 @@ public class AdminSettlementQueryService {
 
         for (SaleCancellation saleCancellation : saleCancellations) {
             String creatorId = saleCancellation.getSaleRecord().getCourse().getCreator().getId();
-            CreatorSettlementAccumulator accumulator = accumulators.get(creatorId);
+            AdminSettlementAccumulator accumulator = accumulators.get(creatorId);
             if (accumulator != null) {
-                accumulator.addCancellation(saleCancellation.getRefundAmount());
+                accumulator.addCancellation(
+                        YearMonth.from(saleCancellation.getCanceledAt().atZoneSameInstant(kstClock.zoneId())),
+                        saleCancellation.getRefundAmount()
+                );
             }
         }
     }
 
     private List<CreatorSettlementSummaryItem> buildSummaryItems(
-            Map<String, CreatorSettlementAccumulator> accumulators
+            Map<String, AdminSettlementAccumulator> accumulators
     ) {
         return accumulators.values().stream()
-                .map(accumulator -> accumulator.toItem(settlementCalculator))
+                .map(accumulator -> accumulator.toItem(settlementCalculator, settlementFeeRateResolver))
                 .toList();
     }
 
@@ -109,50 +121,5 @@ public class AdminSettlementQueryService {
         return items.stream()
                 .map(CreatorSettlementSummaryItem::settlementAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    private static final class CreatorSettlementAccumulator {
-        private final String creatorId;
-        private final String creatorName;
-        private BigDecimal totalSalesAmount = BigDecimal.ZERO;
-        private BigDecimal totalRefundAmount = BigDecimal.ZERO;
-        private long saleCount;
-        private long cancelCount;
-
-        private CreatorSettlementAccumulator(String creatorId, String creatorName) {
-            this.creatorId = creatorId;
-            this.creatorName = creatorName;
-        }
-
-        private void addSale(BigDecimal amount) {
-            totalSalesAmount = totalSalesAmount.add(amount);
-            saleCount++;
-        }
-
-        private void addCancellation(BigDecimal refundAmount) {
-            totalRefundAmount = totalRefundAmount.add(refundAmount);
-            cancelCount++;
-        }
-
-        private CreatorSettlementSummaryItem toItem(SettlementCalculator settlementCalculator) {
-            SettlementCalculator.SettlementAmounts amounts = settlementCalculator.calculate(
-                    totalSalesAmount,
-                    totalRefundAmount,
-                    saleCount,
-                    cancelCount
-            );
-
-            return new CreatorSettlementSummaryItem(
-                    creatorId,
-                    creatorName,
-                    amounts.totalSalesAmount(),
-                    amounts.totalRefundAmount(),
-                    amounts.netSalesAmount(),
-                    amounts.platformFeeAmount(),
-                    amounts.settlementAmount(),
-                    amounts.saleCount(),
-                    amounts.cancelCount()
-            );
-        }
     }
 }

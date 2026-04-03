@@ -10,7 +10,11 @@ import org.springframework.stereotype.Component;
 @Component
 public class SettlementCalculator {
 
-    public SettlementAmounts calculate(List<SaleRecord> saleRecords, List<SaleCancellation> saleCancellations) {
+    public SettlementAmounts calculate(
+            List<SaleRecord> saleRecords,
+            List<SaleCancellation> saleCancellations,
+            BigDecimal feeRate
+    ) {
         BigDecimal totalSalesAmount = saleRecords.stream()
                 .map(SaleRecord::getAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
@@ -19,17 +23,18 @@ public class SettlementCalculator {
                 .map(SaleCancellation::getRefundAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        return calculate(totalSalesAmount, totalRefundAmount, saleRecords.size(), saleCancellations.size());
+        return calculate(totalSalesAmount, totalRefundAmount, saleRecords.size(), saleCancellations.size(), feeRate);
     }
 
     public SettlementAmounts calculate(
             BigDecimal totalSalesAmount,
             BigDecimal totalRefundAmount,
             long saleCount,
-            long cancelCount
+            long cancelCount,
+            BigDecimal feeRate
     ) {
         BigDecimal netSalesAmount = totalSalesAmount.subtract(totalRefundAmount);
-        BigDecimal platformFeeAmount = calculatePlatformFee(netSalesAmount);
+        BigDecimal platformFeeAmount = calculatePlatformFee(netSalesAmount, feeRate);
         BigDecimal settlementAmount = netSalesAmount.subtract(platformFeeAmount);
 
         return new SettlementAmounts(
@@ -43,9 +48,9 @@ public class SettlementCalculator {
         );
     }
 
-    private BigDecimal calculatePlatformFee(BigDecimal netSalesAmount) {
+    private BigDecimal calculatePlatformFee(BigDecimal netSalesAmount, BigDecimal feeRate) {
         BigDecimal feeBaseAmount = netSalesAmount.max(BigDecimal.ZERO);
-        return feeBaseAmount.multiply(SettlementPolicy.DEFAULT_FEE_RATE).setScale(0, RoundingMode.DOWN);
+        return feeBaseAmount.multiply(feeRate).setScale(0, RoundingMode.DOWN);
     }
 
     public record SettlementAmounts(

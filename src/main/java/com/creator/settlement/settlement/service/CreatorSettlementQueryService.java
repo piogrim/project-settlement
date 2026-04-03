@@ -14,8 +14,10 @@ import com.creator.settlement.settlement.domain.Settlement;
 import com.creator.settlement.settlement.dto.CreatorMonthlySettlementResult;
 import com.creator.settlement.settlement.repository.SettlementRepository;
 import com.creator.settlement.settlement.support.SettlementCalculator;
+import com.creator.settlement.settlement.support.SettlementFeeRateResolver;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -34,6 +36,7 @@ public class CreatorSettlementQueryService {
     private final SaleCancellationRepository saleCancellationRepository;
     private final SettlementRepository settlementRepository;
     private final SettlementCalculator settlementCalculator;
+    private final SettlementFeeRateResolver settlementFeeRateResolver;
     private final KstPeriodResolver kstPeriodResolver;
     private final KstClock kstClock;
 
@@ -74,8 +77,9 @@ public class CreatorSettlementQueryService {
                         monthlyRange.endExclusive()
                 );
 
+        BigDecimal feeRate = settlementFeeRateResolver.resolve(settlementMonth);
         SettlementCalculator.SettlementAmounts amounts =
-                settlementCalculator.calculate(saleRecords, saleCancellations);
+                settlementCalculator.calculate(saleRecords, saleCancellations, feeRate);
 
         return new CreatorMonthlySettlementResult(
                 creator.getId(),
