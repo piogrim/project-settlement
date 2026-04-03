@@ -10,8 +10,6 @@ import org.springframework.stereotype.Component;
 @Component
 public class SettlementCalculator {
 
-    private static final BigDecimal FEE_RATE = new BigDecimal("0.20");
-
     public SettlementAmounts calculate(List<SaleRecord> saleRecords, List<SaleCancellation> saleCancellations) {
         BigDecimal totalSalesAmount = saleRecords.stream()
                 .map(SaleRecord::getAmount)
@@ -47,7 +45,7 @@ public class SettlementCalculator {
 
     private BigDecimal calculatePlatformFee(BigDecimal netSalesAmount) {
         BigDecimal feeBaseAmount = netSalesAmount.max(BigDecimal.ZERO);
-        return feeBaseAmount.multiply(FEE_RATE).setScale(0, RoundingMode.DOWN);
+        return feeBaseAmount.multiply(SettlementPolicy.DEFAULT_FEE_RATE).setScale(0, RoundingMode.DOWN);
     }
 
     public record SettlementAmounts(
