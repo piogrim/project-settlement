@@ -7,6 +7,7 @@ import com.creator.settlement.sale.dto.SaleRecordResult;
 import com.creator.settlement.sale.dto.SaleRecordSearchCriteria;
 import com.creator.settlement.sale.service.SaleCommandService;
 import com.creator.settlement.sale.service.SaleQueryService;
+import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +31,7 @@ public class SaleController {
     private final SaleQueryService saleQueryService;
 
     @PostMapping("/sales")
-    public ResponseEntity<SaleRecordResult> registerSale(@RequestBody CreateSaleRequest request) {
+    public ResponseEntity<SaleRecordResult> registerSale(@Valid @RequestBody CreateSaleRequest request) {
         SaleRecordResult result = saleCommandService.registerSale(request.toCommand());
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
@@ -38,7 +39,7 @@ public class SaleController {
     @PostMapping("/sales/{saleId}/cancellations")
     public ResponseEntity<SaleCancellationResult> registerCancellation(
             @PathVariable String saleId,
-            @RequestBody CreateSaleCancellationRequest request
+            @Valid @RequestBody CreateSaleCancellationRequest request
     ) {
         SaleCancellationResult result = saleCommandService.registerCancellation(request.toCommand(saleId));
         return ResponseEntity.status(HttpStatus.CREATED).body(result);

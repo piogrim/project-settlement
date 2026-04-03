@@ -1,9 +1,10 @@
 package com.creator.settlement.common.exception;
 
+import com.creator.settlement.common.time.KstClock;
 import jakarta.validation.ConstraintViolationException;
-import java.time.OffsetDateTime;
-import java.time.ZoneId;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.support.DefaultMessageSourceResolvable;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -14,9 +15,10 @@ import org.springframework.web.method.annotation.MethodArgumentTypeMismatchExcep
 import org.springframework.web.bind.MissingServletRequestParameterException;
 
 @RestControllerAdvice
+@RequiredArgsConstructor
 public class GlobalExceptionHandler {
 
-    private static final ZoneId KST = ZoneId.of("Asia/Seoul");
+    private final KstClock kstClock;
 
     @ExceptionHandler(InvalidRequestException.class)
     public ResponseEntity<ErrorResponse> handleInvalidRequest(InvalidRequestException exception) {
@@ -31,6 +33,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessRuleViolationException.class)
     public ResponseEntity<ErrorResponse> handleBusinessRuleViolation(BusinessRuleViolationException exception) {
         return buildResponse(HttpStatus.CONFLICT, exception.getMessage());
+    }
+
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErrorResponse> handleDataIntegrityViolation(DataIntegrityViolationException exception) {
+        return buildResponse(HttpStatus.CONFLICT, "중복되거나 유효하지 않은 데이터로 인해 저장할 수 없습니다.");
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
@@ -70,7 +77,7 @@ public class GlobalExceptionHandler {
                 status.value(),
                 toKoreanError(status),
                 message,
-                OffsetDateTime.now(KST)
+                kstClock.now()
         );
         return ResponseEntity.status(status).body(body);
     }

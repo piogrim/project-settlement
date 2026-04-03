@@ -3,6 +3,7 @@ package com.creator.settlement.course.controller;
 import com.creator.settlement.course.dto.CourseResult;
 import com.creator.settlement.course.dto.CreateCourseRequest;
 import com.creator.settlement.course.service.CourseCommandService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -19,7 +20,7 @@ public class CourseController {
     private final CourseCommandService courseCommandService;
 
     @PostMapping("/courses")
-    public ResponseEntity<CourseResult> registerCourse(@RequestBody CreateCourseRequest request) {
+    public ResponseEntity<CourseResult> registerCourse(@Valid @RequestBody CreateCourseRequest request) {
         CourseResult result = courseCommandService.registerCourse(request.toCommand());
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }

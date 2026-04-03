@@ -2,6 +2,7 @@ package com.creator.settlement.sale.service;
 
 import com.creator.settlement.common.exception.BusinessRuleViolationException;
 import com.creator.settlement.common.exception.ResourceNotFoundException;
+import com.creator.settlement.common.time.KstClock;
 import com.creator.settlement.course.domain.Course;
 import com.creator.settlement.course.repository.CourseRepository;
 import com.creator.settlement.sale.domain.SaleCancellation;
@@ -11,9 +12,9 @@ import com.creator.settlement.sale.dto.RegisterSaleCommand;
 import com.creator.settlement.sale.dto.SaleCancellationResult;
 import com.creator.settlement.sale.dto.SaleRecordResult;
 import com.creator.settlement.sale.repository.SaleRecordRepository;
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
 import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.time.YearMonth;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -28,8 +29,11 @@ public class SaleCommandService {
 
     private final CourseRepository courseRepository;
     private final SaleRecordRepository saleRecordRepository;
+    private final KstClock kstClock;
 
-    public SaleRecordResult registerSale(@NotNull @Valid RegisterSaleCommand command) {
+    public SaleRecordResult registerSale(RegisterSaleCommand command) {
+        validateWritableMonth(command.paidAt(), "마감된 월의 판매 내역은 등록할 수 없습니다.");
+
         Course course = courseRepository.findById(command.courseId())
                 .orElseThrow(() -> new ResourceNotFoundException("강의를 찾을 수 없습니다: " + command.courseId()));
 
@@ -44,7 +48,9 @@ public class SaleCommandService {
         return SaleRecordResult.from(saleRecordRepository.save(saleRecord));
     }
 
-    public SaleCancellationResult registerCancellation(@NotNull @Valid RegisterSaleCancellationCommand command) {
+    public SaleCancellationResult registerCancellation(RegisterSaleCancellationCommand command) {
+        validateWritableMonth(command.canceledAt(), "마감된 월의 취소 내역은 등록할 수 없습니다.");
+
         SaleRecord saleRecord = saleRecordRepository.findById(command.saleId())
                 .orElseThrow(() -> new ResourceNotFoundException("판매 내역을 찾을 수 없습니다: " + command.saleId()));
 
@@ -67,5 +73,12 @@ public class SaleCommandService {
 
     private String resolveId(String candidate, String prefix) {
         return candidate == null || candidate.isBlank() ? prefix + "-" + UUID.randomUUID() : candidate;
+    }
+
+    private void validateWritableMonth(OffsetDateTime occurredAt, String message) {
+        YearMonth occurredMonth = YearMonth.from(occurredAt.atZoneSameInstant(kstClock.zoneId()));
+        if (occurredMonth.isBefore(kstClock.currentYearMonth())) {
+            throw new BusinessRuleViolationException(message);
+        }
     }
 }

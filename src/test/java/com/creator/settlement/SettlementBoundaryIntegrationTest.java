@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.YearMonth;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -18,6 +19,11 @@ class SettlementBoundaryIntegrationTest extends ApiIntegrationTestSupport {
     @Test
     @DisplayName("월 경계 취소는 판매 월과 취소 월에 분리 반영된다")
     void shouldSplitBoundaryCancellationAcrossDifferentMonths() throws Exception {
+        createCreatorSettlement("creator-2", "settlement-creator-2-2025-01", "2025-01")
+                .andExpect(status().isCreated());
+        createCreatorSettlement("creator-2", "settlement-creator-2-2025-02", "2025-02")
+                .andExpect(status().isCreated());
+
         mockMvc.perform(get("/api/creators/{creatorId}/settlements/monthly", "creator-2")
                         .param("yearMonth", "2025-01"))
                 .andExpect(status().isOk())
@@ -50,55 +56,57 @@ class SettlementBoundaryIntegrationTest extends ApiIntegrationTestSupport {
     @Test
     @DisplayName("월 시작 시각의 판매는 포함되고 다음 달 시작 시각의 판매는 제외된다")
     void shouldIncludeMonthStartSaleAndExcludeNextMonthStartSale() throws Exception {
+        YearMonth currentMonth = kstClock.currentYearMonth();
+        YearMonth nextMonth = currentMonth.plusMonths(1);
+
         mockMvc.perform(post("/api/sales")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "saleId": "sale-boundary-march-start",
+                                  "saleId": "sale-boundary-current-start",
                                   "courseId": "course-1",
                                   "studentId": "student-boundary-1",
                                   "amount": 10000,
-                                  "paidAt": "2025-03-01T00:00:00+09:00"
+                                  "paidAt": "%s-01T00:00:00+09:00"
                                 }
-                                """))
+                                """.formatted(currentMonth)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.saleId").value("sale-boundary-march-start"));
+                .andExpect(jsonPath("$.saleId").value("sale-boundary-current-start"));
 
         mockMvc.perform(post("/api/sales")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "saleId": "sale-boundary-april-start",
+                                  "saleId": "sale-boundary-next-start",
                                   "courseId": "course-1",
                                   "studentId": "student-boundary-2",
                                   "amount": 20000,
-                                  "paidAt": "2025-04-01T00:00:00+09:00"
+                                  "paidAt": "%s-01T00:00:00+09:00"
                                 }
-                                """))
+                                """.formatted(nextMonth)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.saleId").value("sale-boundary-april-start"));
+                .andExpect(jsonPath("$.saleId").value("sale-boundary-next-start"));
 
         mockMvc.perform(get("/api/creators/{creatorId}/settlements/monthly", "creator-1")
-                        .param("yearMonth", "2025-03"))
-                // 기존 3월 판매 260,000원에 월 시작 판매 10,000원을 더하고, 4월 시작 판매 20,000원은 제외한다.
+                        .param("yearMonth", currentMonth.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalSalesAmount").value(270000))
-                .andExpect(jsonPath("$.totalRefundAmount").value(110000))
-                .andExpect(jsonPath("$.netSalesAmount").value(160000))
-                .andExpect(jsonPath("$.platformFeeAmount").value(32000))
-                .andExpect(jsonPath("$.settlementAmount").value(128000))
-                .andExpect(jsonPath("$.saleCount").value(5))
-                .andExpect(jsonPath("$.cancelCount").value(2));
+                .andExpect(jsonPath("$.totalSalesAmount").value(10000))
+                .andExpect(jsonPath("$.totalRefundAmount").value(0))
+                .andExpect(jsonPath("$.netSalesAmount").value(10000))
+                .andExpect(jsonPath("$.platformFeeAmount").value(2000))
+                .andExpect(jsonPath("$.settlementAmount").value(8000))
+                .andExpect(jsonPath("$.saleCount").value(1))
+                .andExpect(jsonPath("$.cancelCount").value(0));
 
         mockMvc.perform(get("/api/creators/{creatorId}/sales", "creator-1")
-                        .param("startDate", "2025-03-01")
-                        .param("endDate", "2025-03-31"))
+                        .param("startDate", currentMonth.atDay(1).toString())
+                        .param("endDate", currentMonth.atEndOfMonth().toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(5))
-                .andExpect(jsonPath("$[4].saleId").value("sale-boundary-march-start"));
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].saleId").value("sale-boundary-current-start"));
 
         mockMvc.perform(get("/api/creators/{creatorId}/settlements/monthly", "creator-1")
-                        .param("yearMonth", "2025-04"))
+                        .param("yearMonth", nextMonth.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalSalesAmount").value(20000))
                 .andExpect(jsonPath("$.totalRefundAmount").value(0))
@@ -112,6 +120,9 @@ class SettlementBoundaryIntegrationTest extends ApiIntegrationTestSupport {
     @Test
     @DisplayName("월 시작 시각의 취소는 포함되고 다음 달 시작 시각의 취소는 다음 달로 넘어간다")
     void shouldIncludeMonthStartCancellationAndDeferNextMonthStartCancellation() throws Exception {
+        YearMonth currentMonth = kstClock.currentYearMonth();
+        YearMonth nextMonth = currentMonth.plusMonths(1);
+
         mockMvc.perform(post("/api/sales")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
@@ -120,9 +131,9 @@ class SettlementBoundaryIntegrationTest extends ApiIntegrationTestSupport {
                                   "courseId": "course-1",
                                   "studentId": "student-boundary-cancel",
                                   "amount": 40000,
-                                  "paidAt": "2025-02-28T23:00:00+09:00"
+                                  "paidAt": "%s-01T09:00:00+09:00"
                                 }
-                                """))
+                                """.formatted(currentMonth)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.saleId").value("sale-boundary-cancel-base"));
 
@@ -132,9 +143,9 @@ class SettlementBoundaryIntegrationTest extends ApiIntegrationTestSupport {
                                 {
                                   "cancellationId": "cancel-boundary-march-start",
                                   "refundAmount": 10000,
-                                  "canceledAt": "2025-03-01T00:00:00+09:00"
+                                  "canceledAt": "%s-01T00:00:00+09:00"
                                 }
-                                """))
+                                """.formatted(currentMonth)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.cancellationId").value("cancel-boundary-march-start"));
 
@@ -144,26 +155,25 @@ class SettlementBoundaryIntegrationTest extends ApiIntegrationTestSupport {
                                 {
                                   "cancellationId": "cancel-boundary-april-start",
                                   "refundAmount": 5000,
-                                  "canceledAt": "2025-04-01T00:00:00+09:00"
+                                  "canceledAt": "%s-01T00:00:00+09:00"
                                 }
-                                """))
+                                """.formatted(nextMonth)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.cancellationId").value("cancel-boundary-april-start"));
 
         mockMvc.perform(get("/api/creators/{creatorId}/settlements/monthly", "creator-1")
-                        .param("yearMonth", "2025-03"))
-                // 기존 3월 취소 110,000원에 3월 1일 00:00:00 취소 10,000원을 더하고, 4월 1일 취소 5,000원은 제외한다.
+                        .param("yearMonth", currentMonth.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalSalesAmount").value(260000))
-                .andExpect(jsonPath("$.totalRefundAmount").value(120000))
-                .andExpect(jsonPath("$.netSalesAmount").value(140000))
-                .andExpect(jsonPath("$.platformFeeAmount").value(28000))
-                .andExpect(jsonPath("$.settlementAmount").value(112000))
-                .andExpect(jsonPath("$.saleCount").value(4))
-                .andExpect(jsonPath("$.cancelCount").value(3));
+                .andExpect(jsonPath("$.totalSalesAmount").value(40000))
+                .andExpect(jsonPath("$.totalRefundAmount").value(10000))
+                .andExpect(jsonPath("$.netSalesAmount").value(30000))
+                .andExpect(jsonPath("$.platformFeeAmount").value(6000))
+                .andExpect(jsonPath("$.settlementAmount").value(24000))
+                .andExpect(jsonPath("$.saleCount").value(1))
+                .andExpect(jsonPath("$.cancelCount").value(1));
 
         mockMvc.perform(get("/api/creators/{creatorId}/settlements/monthly", "creator-1")
-                        .param("yearMonth", "2025-04"))
+                        .param("yearMonth", nextMonth.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalSalesAmount").value(0))
                 .andExpect(jsonPath("$.totalRefundAmount").value(5000))
@@ -177,48 +187,51 @@ class SettlementBoundaryIntegrationTest extends ApiIntegrationTestSupport {
     @Test
     @DisplayName("다른 오프셋으로 들어온 결제 시각도 KST 기준 월 경계로 해석된다")
     void shouldResolveMonthlyBoundaryUsingKstForDifferentOffsets() throws Exception {
-        mockMvc.perform(post("/api/sales")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "saleId": "sale-offset-march",
-                                  "courseId": "course-1",
-                                  "studentId": "student-offset-1",
-                                  "amount": 7000,
-                                  "paidAt": "2025-02-28T15:00:00Z"
-                                }
-                                """))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.saleId").value("sale-offset-march"));
+        YearMonth currentMonth = kstClock.currentYearMonth();
+        String currentMonthStartInUtc = currentMonth.atDay(1).minusDays(1) + "T15:00:00Z";
+        String nextMonthStartInUtc = currentMonth.atEndOfMonth() + "T15:00:00Z";
 
         mockMvc.perform(post("/api/sales")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "saleId": "sale-offset-april",
+                                  "saleId": "sale-offset-current-z",
+                                  "courseId": "course-1",
+                                  "studentId": "student-offset-z",
+                                  "amount": 7000,
+                                  "paidAt": "%s"
+                                }
+                                """.formatted(currentMonthStartInUtc)))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.saleId").value("sale-offset-current-z"));
+
+        mockMvc.perform(post("/api/sales")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "saleId": "sale-offset-next",
                                   "courseId": "course-1",
                                   "studentId": "student-offset-2",
                                   "amount": 9000,
-                                  "paidAt": "2025-03-31T15:00:00Z"
+                                  "paidAt": "%s"
                                 }
-                                """))
+                                """.formatted(nextMonthStartInUtc)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.saleId").value("sale-offset-april"));
+                .andExpect(jsonPath("$.saleId").value("sale-offset-next"));
 
         mockMvc.perform(get("/api/creators/{creatorId}/settlements/monthly", "creator-1")
-                        .param("yearMonth", "2025-03"))
-                // UTC 입력 2025-02-28T15:00:00Z는 KST로 2025-03-01T00:00:00+09:00이므로 3월 매출에 포함된다.
+                        .param("yearMonth", currentMonth.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.totalSalesAmount").value(267000))
-                .andExpect(jsonPath("$.totalRefundAmount").value(110000))
-                .andExpect(jsonPath("$.netSalesAmount").value(157000))
-                .andExpect(jsonPath("$.platformFeeAmount").value(31400))
-                .andExpect(jsonPath("$.settlementAmount").value(125600))
-                .andExpect(jsonPath("$.saleCount").value(5))
-                .andExpect(jsonPath("$.cancelCount").value(2));
+                .andExpect(jsonPath("$.totalSalesAmount").value(7000))
+                .andExpect(jsonPath("$.totalRefundAmount").value(0))
+                .andExpect(jsonPath("$.netSalesAmount").value(7000))
+                .andExpect(jsonPath("$.platformFeeAmount").value(1400))
+                .andExpect(jsonPath("$.settlementAmount").value(5600))
+                .andExpect(jsonPath("$.saleCount").value(1))
+                .andExpect(jsonPath("$.cancelCount").value(0));
 
         mockMvc.perform(get("/api/creators/{creatorId}/settlements/monthly", "creator-1")
-                        .param("yearMonth", "2025-04"))
+                        .param("yearMonth", currentMonth.plusMonths(1).toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.totalSalesAmount").value(9000))
                 .andExpect(jsonPath("$.totalRefundAmount").value(0))

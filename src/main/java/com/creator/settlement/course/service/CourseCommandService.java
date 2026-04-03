@@ -8,15 +8,11 @@ import com.creator.settlement.course.dto.RegisterCourseCommand;
 import com.creator.settlement.course.repository.CourseRepository;
 import com.creator.settlement.creator.domain.Creator;
 import com.creator.settlement.creator.repository.CreatorRepository;
-import jakarta.validation.Valid;
-import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.validation.annotation.Validated;
 
 @Service
-@Validated
 @RequiredArgsConstructor
 @Transactional
 public class CourseCommandService {
@@ -24,7 +20,7 @@ public class CourseCommandService {
     private final CourseRepository courseRepository;
     private final CreatorRepository creatorRepository;
 
-    public CourseResult registerCourse(@NotNull @Valid RegisterCourseCommand command) {
+    public CourseResult registerCourse(RegisterCourseCommand command) {
         if (courseRepository.existsById(command.courseId())) {
             throw new BusinessRuleViolationException("이미 존재하는 강의 ID입니다: " + command.courseId());
         }
