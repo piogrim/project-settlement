@@ -15,9 +15,9 @@ import com.creator.settlement.settlement.dto.RegisterSettlementCommand;
 import com.creator.settlement.settlement.dto.SettlementResult;
 import com.creator.settlement.settlement.repository.SettlementRepository;
 import com.creator.settlement.settlement.support.SettlementCalculator;
-import com.creator.settlement.settlement.support.SettlementPolicy;
+import com.creator.settlement.settlement.support.SettlementFeeRateResolver;
 import jakarta.validation.constraints.NotBlank;
-import java.time.OffsetDateTime;
+import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.util.List;
 import java.util.UUID;
@@ -37,6 +37,7 @@ public class SettlementCommandService {
     private final SaleCancellationRepository saleCancellationRepository;
     private final SettlementRepository settlementRepository;
     private final SettlementCalculator settlementCalculator;
+    private final SettlementFeeRateResolver settlementFeeRateResolver;
     private final KstPeriodResolver kstPeriodResolver;
     private final KstClock kstClock;
 
@@ -70,8 +71,9 @@ public class SettlementCommandService {
                         monthlyRange.endExclusive()
                 );
 
+        BigDecimal feeRate = settlementFeeRateResolver.resolve(command.settlementMonth());
         SettlementCalculator.SettlementAmounts amounts =
-                settlementCalculator.calculate(saleRecords, saleCancellations);
+                settlementCalculator.calculate(saleRecords, saleCancellations, feeRate);
 
         Settlement settlement = settlementRepository.save(Settlement.builder()
                 .id(settlementId)
@@ -82,7 +84,7 @@ public class SettlementCommandService {
                 .netSalesAmount(amounts.netSalesAmount())
                 .platformFeeAmount(amounts.platformFeeAmount())
                 .settlementAmount(amounts.settlementAmount())
-                .feeRate(SettlementPolicy.DEFAULT_FEE_RATE)
+                .feeRate(feeRate)
                 .saleCount(Math.toIntExact(amounts.saleCount()))
                 .cancelCount(Math.toIntExact(amounts.cancelCount()))
                 .build());
@@ -92,13 +94,13 @@ public class SettlementCommandService {
 
     public SettlementResult confirmSettlement(@NotBlank(message = "정산 ID는 필수입니다.") String settlementId) {
         Settlement settlement = findSettlement(settlementId);
-        settlement.confirm(nowInKst());
+        settlement.confirm(kstClock.now());
         return SettlementResult.from(settlement);
     }
 
     public SettlementResult markSettlementPaid(@NotBlank(message = "정산 ID는 필수입니다.") String settlementId) {
         Settlement settlement = findSettlement(settlementId);
-        settlement.markPaid(nowInKst());
+        settlement.markPaid(kstClock.now());
         return SettlementResult.from(settlement);
     }
 
@@ -116,9 +118,5 @@ public class SettlementCommandService {
         if (!settlementMonth.isBefore(currentMonth)) {
             throw new BusinessRuleViolationException("정산 생성은 이전 월에 대해서만 가능합니다.");
         }
-    }
-
-    private OffsetDateTime nowInKst() {
-        return kstClock.now();
     }
 }
