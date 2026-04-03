@@ -1,5 +1,8 @@
 package com.creator.settlement;
 
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+
+import com.creator.settlement.common.time.KstClock;
 import com.creator.settlement.course.domain.Course;
 import com.creator.settlement.course.repository.CourseRepository;
 import com.creator.settlement.creator.domain.Creator;
@@ -8,16 +11,21 @@ import com.creator.settlement.sale.domain.SaleCancellation;
 import com.creator.settlement.sale.domain.SaleRecord;
 import com.creator.settlement.sale.repository.SaleCancellationRepository;
 import com.creator.settlement.sale.repository.SaleRecordRepository;
+import com.creator.settlement.settlement.repository.SettlementRepository;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 
 abstract class ApiIntegrationTestSupport {
 
     @Autowired
     protected MockMvc mockMvc;
+
+    @Autowired
+    protected KstClock kstClock;
 
     @Autowired
     private CreatorRepository creatorRepository;
@@ -31,6 +39,9 @@ abstract class ApiIntegrationTestSupport {
     @Autowired
     private SaleCancellationRepository saleCancellationRepository;
 
+    @Autowired
+    private SettlementRepository settlementRepository;
+
     @BeforeEach
     void setUpRequiredScenario() {
         clearDatabase();
@@ -38,6 +49,7 @@ abstract class ApiIntegrationTestSupport {
     }
 
     private void clearDatabase() {
+        settlementRepository.deleteAllInBatch();
         saleCancellationRepository.deleteAllInBatch();
         saleRecordRepository.deleteAllInBatch();
         courseRepository.deleteAllInBatch();
@@ -108,5 +120,17 @@ abstract class ApiIntegrationTestSupport {
                 .refundAmount(BigDecimal.valueOf(refundAmount))
                 .canceledAt(OffsetDateTime.parse(canceledAt))
                 .build();
+    }
+
+    protected ResultActions createCreatorSettlement(String creatorId, String settlementId, String settlementMonth)
+            throws Exception {
+        return mockMvc.perform(post("/api/creators/{creatorId}/settlements", creatorId)
+                .contentType("application/json")
+                .content("""
+                        {
+                          "settlementId": "%s",
+                          "settlementMonth": "%s"
+                        }
+                        """.formatted(settlementId, settlementMonth)));
     }
 }
