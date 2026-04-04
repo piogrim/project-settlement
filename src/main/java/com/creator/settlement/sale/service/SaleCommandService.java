@@ -51,7 +51,7 @@ public class SaleCommandService {
     public SaleCancellationResult registerCancellation(RegisterSaleCancellationCommand command) {
         validateWritableMonth(command.canceledAt(), "마감된 월의 취소 내역은 등록할 수 없습니다.");
 
-        SaleRecord saleRecord = saleRecordRepository.findById(command.saleId())
+        SaleRecord saleRecord = saleRecordRepository.findByIdForUpdate(command.saleId())
                 .orElseThrow(() -> new ResourceNotFoundException("판매 내역을 찾을 수 없습니다: " + command.saleId()));
 
         BigDecimal nextTotalRefundAmount = saleRecord.getTotalRefundAmount().add(command.refundAmount());

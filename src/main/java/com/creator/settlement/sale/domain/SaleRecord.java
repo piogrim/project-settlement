@@ -49,6 +49,9 @@ public class SaleRecord {
     @Column(name = "paid_at", nullable = false)
     private OffsetDateTime paidAt;
 
+    @Column(name = "total_refund_amount", nullable = false, precision = 15, scale = 0)
+    private BigDecimal totalRefundAmount = BigDecimal.ZERO;
+
     @OneToMany(mappedBy = "saleRecord", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<SaleCancellation> cancellations = new ArrayList<>();
 
@@ -65,16 +68,16 @@ public class SaleRecord {
         this.studentId = studentId;
         this.amount = amount;
         this.paidAt = paidAt;
+        this.totalRefundAmount = BigDecimal.ZERO;
     }
 
     public void addCancellation(SaleCancellation cancellation) {
         this.cancellations.add(cancellation);
         cancellation.attachTo(this);
+        this.totalRefundAmount = this.totalRefundAmount.add(cancellation.getRefundAmount());
     }
 
     public BigDecimal getTotalRefundAmount() {
-        return cancellations.stream()
-                .map(SaleCancellation::getRefundAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        return totalRefundAmount == null ? BigDecimal.ZERO : totalRefundAmount;
     }
 }
