@@ -11,7 +11,7 @@ import com.creator.settlement.sale.domain.SaleRecord;
 import com.creator.settlement.sale.repository.SaleCancellationRepository;
 import com.creator.settlement.sale.repository.SaleRecordRepository;
 import com.creator.settlement.settlement.domain.Settlement;
-import com.creator.settlement.settlement.dto.CreatorMonthlySettlementResult;
+import com.creator.settlement.settlement.dto.response.CreatorMonthlySettlementResult;
 import com.creator.settlement.settlement.repository.SettlementRepository;
 import com.creator.settlement.settlement.support.SettlementCalculator;
 import com.creator.settlement.settlement.support.SettlementFeeRateResolver;

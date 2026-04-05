@@ -1,5 +1,6 @@
-package com.creator.settlement.settlement.dto;
+package com.creator.settlement.settlement.dto.request;
 
+import com.creator.settlement.settlement.dto.command.RegisterSettlementFeeRateCommand;
 import com.creator.settlement.settlement.support.SettlementPolicy;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;

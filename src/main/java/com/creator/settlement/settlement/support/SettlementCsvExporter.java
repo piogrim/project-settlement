@@ -1,7 +1,7 @@
 package com.creator.settlement.settlement.support;
 
-import com.creator.settlement.settlement.dto.AdminSettlementSummaryResult;
-import com.creator.settlement.settlement.dto.CreatorSettlementSummaryItem;
+import com.creator.settlement.settlement.dto.response.AdminSettlementSummaryResult;
+import com.creator.settlement.settlement.dto.response.CreatorSettlementSummaryItem;
 import java.math.BigDecimal;
 import java.util.StringJoiner;
 import org.springframework.stereotype.Component;

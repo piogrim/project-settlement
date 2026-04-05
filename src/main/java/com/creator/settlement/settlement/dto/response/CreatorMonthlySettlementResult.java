@@ -1,10 +1,11 @@
-package com.creator.settlement.settlement.dto;
+package com.creator.settlement.settlement.dto.response;
 
 import java.math.BigDecimal;
 
-public record CreatorSettlementSummaryItem(
+public record CreatorMonthlySettlementResult(
         String creatorId,
         String creatorName,
+        String settlementMonth,
         BigDecimal totalSalesAmount,
         BigDecimal totalRefundAmount,
         BigDecimal netSalesAmount,

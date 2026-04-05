@@ -1,8 +1,8 @@
-package com.creator.settlement.settlement.controller;
+package com.creator.settlement.settlement.controller.admin;
 
-import com.creator.settlement.settlement.dto.AdminSettlementSummaryQuery;
-import com.creator.settlement.settlement.dto.AdminSettlementSummaryResult;
-import com.creator.settlement.settlement.dto.SettlementResult;
+import com.creator.settlement.settlement.dto.query.AdminSettlementSummaryQuery;
+import com.creator.settlement.settlement.dto.response.AdminSettlementSummaryResult;
+import com.creator.settlement.settlement.dto.response.SettlementResult;
 import com.creator.settlement.settlement.service.AdminSettlementQueryService;
 import com.creator.settlement.settlement.service.SettlementCommandService;
 import com.creator.settlement.settlement.support.SettlementCsvExporter;

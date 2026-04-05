@@ -1,4 +1,4 @@
-package com.creator.settlement.settlement.dto;
+package com.creator.settlement.settlement.dto.response;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
