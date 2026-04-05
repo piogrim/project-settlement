@@ -3,12 +3,24 @@ package com.creator.settlement.sale.repository;
 import com.creator.settlement.sale.domain.SaleRecord;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Optional;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import jakarta.persistence.LockModeType;
 
 public interface SaleRecordRepository extends JpaRepository<SaleRecord, String> {
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @EntityGraph(attributePaths = {"cancellations"})
+    @Query("""
+            select s
+            from SaleRecord s
+            where s.id = :saleId
+            """)
+    Optional<SaleRecord> findByIdForUpdate(@Param("saleId") String saleId);
 
     @EntityGraph(attributePaths = {"course", "course.creator", "cancellations"})
     @Query("""
