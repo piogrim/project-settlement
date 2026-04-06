@@ -21,12 +21,6 @@ public class KstPeriodResolver {
         return new KstRange(startAt, endExclusive);
     }
 
-    public KstRange dateRange(LocalDate startDate, LocalDate endDate) {
-        OffsetDateTime startAt = startDate.atStartOfDay(kstClock.zoneId()).toOffsetDateTime();
-        OffsetDateTime endExclusive = endDate.plusDays(1).atStartOfDay(kstClock.zoneId()).toOffsetDateTime();
-        return new KstRange(startAt, endExclusive);
-    }
-
     public KstRange optionalDateRange(LocalDate startDate, LocalDate endDate) {
         OffsetDateTime startAt = startDate == null
                 ? null

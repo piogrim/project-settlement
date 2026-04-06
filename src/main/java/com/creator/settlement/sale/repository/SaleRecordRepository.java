@@ -33,22 +33,25 @@ public interface SaleRecordRepository extends JpaRepository<SaleRecord, String> 
               and (:endExclusive is null or s.paidAt < :endExclusive)
             order by s.paidAt desc
             """)
-    List<SaleRecord> findSaleRecordsByCreatorAndPaidAtRange(
+    List<SaleRecord> findAllForCreatorInPaidAtRangeOrderByPaidAtDesc(
             @Param("creatorId") String creatorId,
             @Param("startAt") OffsetDateTime startAt,
             @Param("endExclusive") OffsetDateTime endExclusive
     );
 
     @EntityGraph(attributePaths = {"course", "course.creator"})
-    List<SaleRecord> findAllByCourseCreatorIdAndPaidAtGreaterThanEqualAndPaidAtLessThan(
-            String creatorId,
-            OffsetDateTime startAt,
-            OffsetDateTime endExclusive
-    );
-
-    @EntityGraph(attributePaths = {"course", "course.creator"})
-    List<SaleRecord> findAllByPaidAtGreaterThanEqualAndPaidAtLessThan(
-            OffsetDateTime startAt,
-            OffsetDateTime endExclusive
+    @Query("""
+            select saleRecord
+            from SaleRecord saleRecord
+            join saleRecord.course course
+            join course.creator creator
+            where creator.id = :creatorId
+              and saleRecord.paidAt >= :startAt
+              and saleRecord.paidAt < :endExclusive
+            """)
+    List<SaleRecord> findAllForCreatorInPaidAtRange(
+            @Param("creatorId") String creatorId,
+            @Param("startAt") OffsetDateTime startAt,
+            @Param("endExclusive") OffsetDateTime endExclusive
     );
 }
