@@ -1,5 +1,6 @@
-package com.creator.settlement.settlement.dto;
+package com.creator.settlement.settlement.dto.request;
 
+import com.creator.settlement.settlement.dto.command.RegisterSettlementCommand;
 import jakarta.validation.constraints.NotBlank;
 import java.time.YearMonth;
 

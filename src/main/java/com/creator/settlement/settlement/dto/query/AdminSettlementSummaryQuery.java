@@ -1,4 +1,4 @@
-package com.creator.settlement.settlement.dto;
+package com.creator.settlement.settlement.dto.query;
 
 import com.creator.settlement.common.validation.ValidDateRange;
 import jakarta.validation.constraints.NotNull;

@@ -1,9 +1,9 @@
-package com.creator.settlement.settlement.controller;
+package com.creator.settlement.settlement.controller.creator;
 
 import com.creator.settlement.common.exception.InvalidRequestException;
-import com.creator.settlement.settlement.dto.CreateSettlementRequest;
-import com.creator.settlement.settlement.dto.CreatorMonthlySettlementResult;
-import com.creator.settlement.settlement.dto.SettlementResult;
+import com.creator.settlement.settlement.dto.request.CreateSettlementRequest;
+import com.creator.settlement.settlement.dto.response.CreatorMonthlySettlementResult;
+import com.creator.settlement.settlement.dto.response.SettlementResult;
 import com.creator.settlement.settlement.service.CreatorSettlementQueryService;
 import com.creator.settlement.settlement.service.SettlementCommandService;
 import jakarta.validation.Valid;

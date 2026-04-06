@@ -1,6 +1,6 @@
 package com.creator.settlement.settlement.service;
 
-import com.creator.settlement.settlement.dto.SettlementFeeRateResult;
+import com.creator.settlement.settlement.dto.response.SettlementFeeRateResult;
 import com.creator.settlement.settlement.repository.SettlementFeeRateRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;

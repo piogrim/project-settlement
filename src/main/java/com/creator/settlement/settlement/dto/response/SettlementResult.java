@@ -1,4 +1,4 @@
-package com.creator.settlement.settlement.dto;
+package com.creator.settlement.settlement.dto.response;
 
 import com.creator.settlement.settlement.domain.Settlement;
 import java.math.BigDecimal;
