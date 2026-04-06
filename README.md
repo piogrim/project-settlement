@@ -1,1 +1,662 @@
-# project-settlement
+# Creator Settlement API
+
+## 프로젝트 개요
+크리에이터가 판매한 강의의 결제/취소 내역을 관리하고, 월별 정산 금액과 운영자용 기간 집계를 제공하는 Spring Boot 기반 API입니다.
+
+핵심 기능은 다음과 같습니다.
+- 판매 내역 등록
+- 취소/환불 내역 등록
+- 크리에이터별 판매 내역 조회
+- 크리에이터별 월별 정산 조회
+- 운영자용 기간별 전체 정산 집계 조회
+- 운영자용 정산 집계 CSV 다운로드
+- 정산 생성 및 상태 전이 관리(`PENDING -> CONFIRMED -> PAID`)
+
+## 기술 스택
+- Java 25
+- Spring Boot 4.0.5
+- Spring Web MVC
+- Spring Data JPA
+- Hibernate / Jakarta Validation
+- H2 Database
+- MySQL 8.0 (Docker Compose 선택 실행)
+- Gradle
+- Lombok
+
+## 실행 방법
+### 1. 기본 실행(H2)
+
+1. 애플리케이션 실행
+
+```bash
+./gradlew bootRun
+```
+
+```powershell
+gradlew.bat bootRun
+```
+
+2. 실행 특징
+- 별도 DB 준비 없이 H2 메모리 DB로 바로 실행됩니다.
+- 애플리케이션은 빈 DB 상태로 시작합니다.
+- 과제 제출 및 빠른 로컬 확인은 이 방식을 기본으로 사용합니다.
+
+3. H2 콘솔
+
+```text
+URL: http://localhost:8080/h2-console
+JDBC URL: jdbc:h2:mem:settlement
+Username: sa
+Password: (빈 값)
+```
+
+### 2. MySQL 실행(Docker Compose)
+
+1. MySQL 컨테이너 실행
+
+```bash
+docker compose up -d
+```
+
+2. `mysql` 프로필로 애플리케이션 실행
+
+```bash
+./gradlew bootRun --args='--spring.profiles.active=mysql'
+```
+
+```powershell
+gradlew.bat bootRun --args="--spring.profiles.active=mysql"
+```
+
+3. 참고 사항
+- MySQL 실행 설정은 [docker-compose.yml](./docker-compose.yml), [application-mysql.yaml](./src/main/resources/application-mysql.yaml)에 분리되어 있습니다.
+- 기본 실행은 H2, 선택 실행은 MySQL(Docker Compose) 방식으로 구성했습니다.
+- 로컬 Docker 환경에 따라 MySQL 이미지 초기화 제약이 있을 수 있어, 제출/기본 실행은 H2 기준으로도 바로 가능하도록 유지했습니다.
+
+### 3. 기본 포트
+
+```text
+http://localhost:8080
+```
+
+### 4. 샘플 데이터
+- 기본 실행은 H2 메모리 DB를 사용합니다.
+- `mysql` 프로필 실행 시 Docker Compose의 MySQL을 사용합니다.
+- 애플리케이션은 샘플 데이터를 자동 적재하지 않습니다.
+- 과제에서 제시한 샘플 시나리오는 통합테스트가 시작될 때마다 직접 구성해 검증합니다.
+- 수동 확인이 필요할 경우 `크리에이터 생성 -> 강의 생성 -> 현재 월/미래 월 판매 등록 -> 현재 월/미래 월 취소 등록 -> 크리에이터가 이전 월 정산 생성 -> 크리에이터 월별 정산 조회 -> 운영자 확정/지급 처리` 순서로 검증할 수 있습니다.
+- 과제의 과거 샘플 시나리오(`2025-01`, `2025-02`, `2025-03`)는 실행 앱에 직접 주입하지 않고 통합테스트 fixture로 재현합니다.
+
+## 현재 구현 기준 운영 방식
+- 애플리케이션은 빈 DB로 시작하고, 필요한 기준 데이터는 `크리에이터 -> 강의 -> 판매 -> 취소` 순서로 직접 등록합니다.
+- 판매와 취소는 현재 월과 미래 월만 등록할 수 있습니다. 마감된 이전 월 데이터는 입력할 수 없습니다.
+- 한 판매 건에는 여러 번 부분 취소를 등록할 수 있고, 판매 건의 누적 환불 금액을 관리해 총 환불액이 원 결제 금액을 넘지 않도록 막습니다.
+- 크리에이터의 현재 월 정산 조회는 `DailySettlement` 일별 사전 집계를 기준으로 실시간 계산합니다.
+- 크리에이터의 이전 월 정산 조회는 먼저 정산 생성 API로 `MonthlySettlement` 스냅샷을 만든 뒤에만 가능합니다.
+- 이전 월 정산 생성은 크리에이터가 요청하고, 생성된 정산은 `PENDING` 상태로 저장됩니다.
+- 운영자는 생성된 정산을 `CONFIRMED`, `PAID` 상태로 전이합니다.
+- 운영자 기간 집계와 CSV 다운로드는 월 스냅샷이 아니라 `creator_daily_settlements` 일별 사전 집계를 읽습니다.
+- 판매/취소 등록 시 KST 일자 기준 일별 사전 집계를 함께 갱신하고, 조회 시에는 이 일별 집계를 월별로 다시 묶어 수수료율을 적용합니다.
+- 수수료율은 기본 20%를 사용하며, 수수료율 이력이 있으면 해당 연월부터 이력 값을 우선 적용합니다.
+- 수수료율 이력은 현재 월과 미래 월에 대해서만 생성/수정할 수 있고, 과거 월 값은 소급 변경할 수 없습니다.
+
+## API 목록 및 예시
+### 공통 사항
+- Base URL: `http://localhost:8080`
+- 생성 API는 `201 Created`, 조회/상태 변경 API는 `200 OK`를 사용합니다.
+- 기본 응답 타입은 `application/json`이며, CSV 다운로드만 `text/csv;charset=UTF-8`를 반환합니다.
+- 에러 응답은 다음 형식을 사용합니다.
+
+```json
+{
+  "status": 409,
+  "error": "충돌",
+  "message": "마감된 월의 판매 내역은 등록할 수 없습니다.",
+  "timestamp": "2026-04-06T15:10:00+09:00"
+}
+```
+
+### 1. 크리에이터 등록
+`POST /api/creators`
+
+요청:
+
+```json
+{
+  "creatorId": "creator-1",
+  "name": "김강사"
+}
+```
+
+응답:
+
+```json
+{
+  "creatorId": "creator-1",
+  "name": "김강사"
+}
+```
+
+### 2. 강의 등록
+`POST /api/courses`
+
+요청:
+
+```json
+{
+  "courseId": "course-1",
+  "creatorId": "creator-1",
+  "title": "Spring Boot 입문"
+}
+```
+
+응답:
+
+```json
+{
+  "courseId": "course-1",
+  "creatorId": "creator-1",
+  "title": "Spring Boot 입문"
+}
+```
+
+### 3. 판매 등록
+`POST /api/sales`
+
+요청:
+
+```json
+{
+  "saleId": "sale-api-1",
+  "courseId": "course-1",
+  "studentId": "student-1",
+  "amount": 50000,
+  "paidAt": "2026-04-10T15:00:00+09:00"
+}
+```
+
+응답:
+
+```json
+{
+  "saleId": "sale-api-1",
+  "courseId": "course-1",
+  "courseTitle": "Spring Boot 입문",
+  "creatorId": "creator-1",
+  "creatorName": "김강사",
+  "studentId": "student-1",
+  "amount": 50000,
+  "paidAt": "2026-04-10T15:00:00+09:00",
+  "refundedAmount": 0,
+  "cancellationCount": 0
+}
+```
+
+### 4. 취소 등록
+`POST /api/sales/{saleId}/cancellations`
+
+요청:
+
+```json
+{
+  "cancellationId": "cancel-api-1",
+  "refundAmount": 10000,
+  "canceledAt": "2026-04-11T18:00:00+09:00"
+}
+```
+
+응답:
+
+```json
+{
+  "cancellationId": "cancel-api-1",
+  "saleId": "sale-api-1",
+  "refundAmount": 10000,
+  "canceledAt": "2026-04-11T18:00:00+09:00",
+  "totalRefundedAmount": 10000
+}
+```
+
+### 5. 판매 내역 조회
+`GET /api/creators/{creatorId}/sales?startDate=2025-03-01&endDate=2025-03-31`
+
+응답:
+
+```json
+[
+  {
+    "saleId": "sale-4",
+    "courseId": "course-2",
+    "courseTitle": "JPA 실전",
+    "creatorId": "creator-1",
+    "creatorName": "김강사",
+    "studentId": "student-4",
+    "amount": 80000,
+    "paidAt": "2025-03-22T11:00:00+09:00",
+    "refundedAmount": 30000,
+    "cancellationCount": 1
+  }
+]
+```
+
+### 6. 월별 정산 조회
+`GET /api/creators/{creatorId}/settlements/monthly?yearMonth=2025-03`
+
+응답:
+
+```json
+{
+  "creatorId": "creator-1",
+  "creatorName": "김강사",
+  "settlementMonth": "2025-03",
+  "totalSalesAmount": 260000,
+  "totalRefundAmount": 110000,
+  "netSalesAmount": 150000,
+  "platformFeeAmount": 30000,
+  "settlementAmount": 120000,
+  "saleCount": 4,
+  "cancelCount": 2
+}
+```
+
+### 7. 운영자용 기간 집계 조회
+`GET /api/admin/settlements?startDate=2025-03-01&endDate=2025-03-31`
+
+- 임의 날짜 구간을 조회할 수 있습니다. 예: `2025-01-01 ~ 2025-02-15`
+- 내부적으로는 일별 사전 집계를 읽은 뒤 `YearMonth`별로 다시 묶어 각 월의 수수료율을 적용합니다.
+
+응답:
+
+```json
+{
+  "startDate": "2025-03-01",
+  "endDate": "2025-03-31",
+  "items": [
+    {
+      "creatorId": "creator-1",
+      "creatorName": "김강사",
+      "totalSalesAmount": 260000,
+      "totalRefundAmount": 110000,
+      "netSalesAmount": 150000,
+      "platformFeeAmount": 30000,
+      "settlementAmount": 120000,
+      "saleCount": 4,
+      "cancelCount": 2
+    },
+    {
+      "creatorId": "creator-2",
+      "creatorName": "이강사",
+      "totalSalesAmount": 60000,
+      "totalRefundAmount": 0,
+      "netSalesAmount": 60000,
+      "platformFeeAmount": 12000,
+      "settlementAmount": 48000,
+      "saleCount": 1,
+      "cancelCount": 0
+    },
+    {
+      "creatorId": "creator-3",
+      "creatorName": "박강사",
+      "totalSalesAmount": 0,
+      "totalRefundAmount": 0,
+      "netSalesAmount": 0,
+      "platformFeeAmount": 0,
+      "settlementAmount": 0,
+      "saleCount": 0,
+      "cancelCount": 0
+    }
+  ],
+  "totalSettlementAmount": 168000
+}
+```
+
+### 8. 정산 생성
+`POST /api/creators/{creatorId}/settlements`
+
+요청:
+
+```json
+{
+  "settlementId": "settlement-creator-1-2025-03",
+  "settlementMonth": "2025-03"
+}
+```
+
+응답:
+
+```json
+{
+  "settlementId": "settlement-creator-1-2025-03",
+  "creatorId": "creator-1",
+  "creatorName": "김강사",
+  "settlementMonth": "2025-03",
+  "totalSalesAmount": 260000,
+  "totalRefundAmount": 110000,
+  "netSalesAmount": 150000,
+  "platformFeeAmount": 30000,
+  "settlementAmount": 120000,
+  "feeRate": 0.2000,
+  "saleCount": 4,
+  "cancelCount": 2,
+  "status": "PENDING"
+}
+```
+
+### 9. 정산 확정
+`POST /api/admin/settlements/{settlementId}/confirm`
+
+응답 예시:
+
+```json
+{
+  "settlementId": "settlement-creator-1-2025-03",
+  "creatorId": "creator-1",
+  "creatorName": "김강사",
+  "settlementMonth": "2025-03",
+  "totalSalesAmount": 260000,
+  "totalRefundAmount": 110000,
+  "netSalesAmount": 150000,
+  "platformFeeAmount": 30000,
+  "settlementAmount": 120000,
+  "feeRate": 0.2000,
+  "saleCount": 4,
+  "cancelCount": 2,
+  "status": "CONFIRMED",
+  "confirmedAt": "2026-04-06T15:20:00+09:00"
+}
+```
+
+### 10. 정산 지급 완료
+`POST /api/admin/settlements/{settlementId}/pay`
+
+응답 예시:
+
+```json
+{
+  "settlementId": "settlement-creator-1-2025-03",
+  "creatorId": "creator-1",
+  "creatorName": "김강사",
+  "settlementMonth": "2025-03",
+  "totalSalesAmount": 260000,
+  "totalRefundAmount": 110000,
+  "netSalesAmount": 150000,
+  "platformFeeAmount": 30000,
+  "settlementAmount": 120000,
+  "feeRate": 0.2000,
+  "saleCount": 4,
+  "cancelCount": 2,
+  "status": "PAID",
+  "confirmedAt": "2026-04-06T15:20:00+09:00",
+  "paidAt": "2026-04-06T15:25:00+09:00"
+}
+```
+
+### 11. 운영자용 정산 집계 CSV 요청
+`GET /api/admin/settlements/export/csv?startDate=2025-03-01&endDate=2025-03-31`
+
+응답 헤더:
+
+```text
+Content-Disposition: attachment; filename="settlement-summary-2025-03-01-to-2025-03-31.csv"
+Content-Type: text/csv;charset=UTF-8
+```
+
+응답 본문 예시:
+
+```csv
+정산 시작일,정산 종료일,크리에이터 ID,크리에이터명,총 판매 금액,총 환불 금액,순 판매 금액,플랫폼 수수료,정산 예정 금액,판매 건수,취소 건수
+2025-03-01,2025-03-31,creator-1,김강사,260000,110000,150000,30000,120000,4,2
+2025-03-01,2025-03-31,creator-2,이강사,60000,0,60000,12000,48000,1,0
+2025-03-01,2025-03-31,creator-3,박강사,0,0,0,0,0,0,0
+2025-03-01,2025-03-31,TOTAL,전체 합계,320000,110000,210000,42000,168000,5,2
+```
+
+### 12. 수수료율 이력 등록
+`POST /api/admin/settlement-fee-rates`
+
+요청:
+
+```json
+{
+  "settlementFeeRateId": "fee-rate-2026-05",
+  "effectiveFrom": "2026-05",
+  "feeRate": 0.1500
+}
+```
+
+응답:
+
+```json
+{
+  "settlementFeeRateId": "fee-rate-2026-05",
+  "effectiveFrom": "2026-05",
+  "feeRate": 0.1500,
+  "createdAt": "2026-04-06T15:30:00+09:00"
+}
+```
+
+### 13. 수수료율 이력 조회
+`GET /api/admin/settlement-fee-rates`
+
+응답:
+
+```json
+[
+  {
+    "settlementFeeRateId": "fee-rate-2026-06",
+    "effectiveFrom": "2026-06",
+    "feeRate": 0.1000,
+    "createdAt": "2026-04-06T15:31:00+09:00"
+  },
+  {
+    "settlementFeeRateId": "fee-rate-2026-05",
+    "effectiveFrom": "2026-05",
+    "feeRate": 0.1500,
+    "createdAt": "2026-04-06T15:30:00+09:00"
+  }
+]
+```
+
+### 14. 수수료율 이력 수정
+`PUT /api/admin/settlement-fee-rates/{settlementFeeRateId}`
+
+요청:
+
+```json
+{
+  "feeRate": 0.1200
+}
+```
+
+응답:
+
+```json
+{
+  "settlementFeeRateId": "fee-rate-2026-05",
+  "effectiveFrom": "2026-05",
+  "feeRate": 0.1200,
+  "createdAt": "2026-04-06T15:30:00+09:00"
+}
+```
+
+## 데이터 모델 설명
+- 스키마는 JPA/Hibernate로 자동 생성됩니다.
+- H2 실행 시 `ddl-auto: create-drop`, MySQL 실행 시 `ddl-auto: create` 설정을 사용합니다.
+
+### 엔티티별 설명
+- `Creator` (`creators`)
+  - PK: `creator_id`
+  - 컬럼: `name`
+  - 크리에이터 정보입니다.
+- `Course` (`courses`)
+  - PK: `course_id`
+  - FK: `creator_id -> creators.creator_id`
+  - 컬럼: `title`
+  - 한 크리에이터가 여러 강의를 가질 수 있습니다.
+- `SaleRecord` (`sale_records`)
+  - PK: `sale_id`
+  - FK: `course_id -> courses.course_id`
+  - 컬럼: `student_id`, `amount`, `paid_at`, `total_refund_amount`
+  - 인덱스: `paid_at`
+  - 판매 원천 데이터이며 누적 환불 금액을 함께 관리합니다.
+- `SaleCancellation` (`sale_cancellations`)
+  - PK: `cancel_id`
+  - FK: `sale_id -> sale_records.sale_id`
+  - 컬럼: `refund_amount`, `canceled_at`
+  - 인덱스: `canceled_at`
+  - 한 판매 건에 대해 여러 부분 취소를 기록할 수 있습니다.
+- `DailySettlement` (`creator_daily_settlements`)
+  - PK: `daily_settlement_id`
+  - FK: `creator_id -> creators.creator_id`
+  - 유니크 제약: `(creator_id, settlement_date)`
+  - 컬럼: `settlement_date`, `total_sales_amount`, `total_refund_amount`, `sale_count`, `cancel_count`
+  - 인덱스: `settlement_date`, `(creator_id, settlement_date)`
+  - 운영자 기간 조회와 CSV 다운로드를 위한 일별 사전 집계 테이블입니다.
+  - `daily_settlement_id`는 `creatorId:settlementDate` 형식으로 생성합니다.
+- `MonthlySettlement` (`settlements`)
+  - PK: `settlement_id`
+  - FK: `creator_id -> creators.creator_id`
+  - 유니크 제약: `(creator_id, settlement_month)`
+  - 컬럼: `settlement_month`, `total_sales_amount`, `total_refund_amount`, `net_sales_amount`, `platform_fee_amount`, `settlement_amount`, `fee_rate`, `sale_count`, `cancel_count`, `status`, `confirmed_at`, `paid_at`
+  - 인덱스: `settlement_month`, `status`
+  - 이전 월 정산 스냅샷과 상태 전이 정보를 저장합니다.
+- `SettlementFeeRate` (`settlement_fee_rates`)
+  - PK: `settlement_fee_rate_id`
+  - 유니크 제약: `effective_from`
+  - 컬럼: `effective_from`, `fee_rate`, `created_at`
+  - 인덱스: `effective_from`
+  - 특정 연월부터 적용할 플랫폼 수수료율 이력을 관리합니다.
+
+### 관계 요약
+- `Creator 1 : N Course`
+- `Course 1 : N SaleRecord`
+- `SaleRecord 1 : N SaleCancellation`
+- `Creator 1 : N DailySettlement`
+- `Creator 1 : N MonthlySettlement`
+- `SettlementFeeRate`는 독립 테이블이며, 조회 시 `effective_from` 기준으로 정산 계산에 적용됩니다.
+
+### ERD 관점 요약
+
+```text
+Creator (creator_id)
+  ├─< Course (course_id, creator_id)
+  │    └─< SaleRecord (sale_id, course_id)
+  │          └─< SaleCancellation (cancel_id, sale_id)
+  ├─< DailySettlement (daily_settlement_id, creator_id, settlement_date) [unique: creator_id + settlement_date]
+  └─< MonthlySettlement (settlement_id, creator_id, settlement_month) [unique: creator_id + settlement_month]
+
+SettlementFeeRate (settlement_fee_rate_id, effective_from) [unique: effective_from]
+```
+
+## 요구사항 해석 및 가정
+- 판매는 `paidAt` 기준으로 집계합니다.
+- 취소는 `canceledAt` 기준으로 집계합니다.
+- 월 경계와 기간 계산은 모두 KST 기준으로 처리하며, 내부 구현은 `시작 시각 이상` + `다음 경계 시각 미만` 방식으로 계산했습니다.
+- 기본 수수료율은 20%이며, 수수료율 이력을 등록하면 해당 연월부터는 등록된 수수료율을 우선 적용합니다.
+- 현재 월 조회는 아직 진행 중인 기간으로 보고 `DailySettlement` 일별 사전 집계를 기준으로 실시간 계산합니다.
+- 크리에이터의 이전 월 조회는 저장된 `MonthlySettlement` 스냅샷이 있을 때만 허용하며, 먼저 해당 월 정산을 생성해야 합니다.
+- 정산 생성은 마감된 월만 허용하며, 현재 월과 미래 월은 조회만 가능하고 생성은 허용하지 않습니다.
+- 운영자 기간 집계는 날짜 범위 기준 기능으로 보고, 월 스냅샷 대신 일별 사전 집계를 사용합니다.
+- 운영자 기간 집계는 기간 전체에 수수료율 하나를 적용하지 않고, 조회된 일별 집계를 `YearMonth`별로 다시 묶어 월별 수수료율을 적용한 뒤 합산합니다.
+- 운영자용 CSV 다운로드도 날짜 범위 집계 결과를 그대로 CSV 응답으로 반환합니다.
+- 판매 등록과 취소 등록은 현재 월과 미래 월만 허용하며, 이전 월 데이터 입력은 허용하지 않습니다.
+- 수수료율 이력은 현재 월과 미래 월에 대해서만 생성/수정할 수 있고, 과거 월에 대한 소급 변경은 허용하지 않습니다.
+- 환불만 있는 달은 수수료를 음수로 계산하지 않고 `0원`으로 처리했습니다.
+- 판매 목록 조회의 기간 필터는 선택값으로 해석하여, 시작일 또는 종료일 없이도 조회할 수 있게 구현했습니다.
+- 샘플 JSON에는 취소 데이터가 포함되어 있지 않아, 테스트 fixture에서 `cancel-1`, `cancel-2`, `cancel-3` 데이터를 함께 구성했습니다.
+
+## 설계 결정과 이유
+- 판매와 취소를 하나의 이벤트 테이블로 합치지 않고 `SaleRecord`와 `SaleCancellation`으로 분리했습니다.
+  - 판매와 취소의 집계 기준 시각이 다르기 때문입니다.
+- `MonthlySettlement`를 이전 월 정산 스냅샷으로 두고, `creator + settlementMonth` 유니크 제약과 `PENDING -> CONFIRMED -> PAID` 상태를 함께 관리했습니다.
+  - 마감 월 정산값을 고정하고, 동일 기간 중복 생성 방지와 확정/지급 흐름을 명확하게 표현하기 위해서입니다.
+- 크리에이터 조회와 운영자 조회를 다르게 가져갔습니다.
+  - 크리에이터에게는 생성된 이전 월 정산 스냅샷을 보여주고, 운영자에게는 임의 날짜 구간의 집계 결과를 제공해야 하기 때문입니다.
+- 판매/취소 등록은 이전 월에 대해 차단했습니다.
+  - 마감된 월의 원천 데이터를 뒤늦게 변경해 정산 스냅샷과 실제 조회 결과가 어긋나는 문제를 막기 위해서입니다.
+- 운영자 기간 집계용으로 `DailySettlement` 일별 사전 집계를 추가했습니다.
+  - 운영자 조회와 CSV 다운로드 시 원천 판매/취소를 매번 다시 스캔하지 않고, 쓰기 시점에 갱신된 일별 합계를 읽어 성능을 개선하기 위해서입니다.
+- 운영자 기간 집계는 일별 집계를 그대로 합산하지 않고, 조회 시 월별로 다시 묶은 뒤 수수료율을 적용합니다.
+  - 임의 날짜 구간 조회를 지원하면서도 월별 수수료율 변경 규칙을 유지하기 위해서입니다.
+- 판매는 `SaleCommandService`, `SaleQueryService`로 나누고, 정산은 크리에이터용/운영자용 조회 서비스로 분리했습니다.
+  - 등록/취소와 조회, 일반 사용자 조회와 운영자 집계의 책임이 다르다고 보았기 때문입니다.
+- KST 기준 기간 계산과 정산 금액 계산은 공통 컴포넌트로 분리했습니다.
+  - 기간 계산 정책과 수수료/순매출 계산 규칙을 한 곳에서 관리하기 위해서입니다.
+- 조회 성능과 N+1 문제를 줄이기 위해 repository에 `EntityGraph`를 사용했습니다.
+- 입력값 검증은 Bean Validation 어노테이션으로 옮기고, 존재 여부/환불 한도 같은 비즈니스 검증만 서비스에 남겼습니다.
+
+## 테스트 실행 방법
+자동 테스트 실행:
+
+```bash
+./gradlew test
+```
+
+```powershell
+gradlew.bat test
+```
+
+컴파일 확인:
+
+```bash
+./gradlew compileJava
+```
+
+```powershell
+gradlew.bat compileJava
+```
+
+수동 검증:
+- 필요한 데이터는 `POST /api/creators`, `POST /api/courses`, `POST /api/sales`, `POST /api/sales/{saleId}/cancellations`, `POST /api/creators/{creatorId}/settlements` 순서로 직접 입력한 뒤 월별 정산, 월 경계 취소, 빈 월 조회, 잘못된 요청 형식을 확인할 수 있습니다.
+- 운영자 기간 집계는 `GET /api/admin/settlements`, CSV 응답은 `GET /api/admin/settlements/export/csv`로 확인할 수 있습니다.
+- 필요 시 MySQL 컨테이너를 띄운 뒤 `--spring.profiles.active=mysql`로 동일 API를 검증할 수 있습니다.
+- MySQL 기준으로도 샘플 정산 조회 및 판매 등록 API를 직접 호출해 동작을 확인했습니다.
+
+추가 검증 시나리오:
+- 이전 월 정산 스냅샷 선행 생성
+  - 크리에이터의 이전 월 정산 조회는 먼저 정산을 생성해야만 가능한지 검증했습니다.
+- 현재 월/미래 월 정산 생성 제한
+  - 현재 월과 미래 월은 정산 생성이 거절되고, 조회 API로만 확인할 수 있는지 검증했습니다.
+- 과거 월 수수료율 이력 생성/수정 제한
+  - 수수료율 이력은 현재 월과 미래 월에 대해서는 생성/수정 가능하고, 과거 월 소급 변경은 거절되는지 검증했습니다.
+- 이전 월 판매/취소 등록 차단
+  - 마감된 월에는 원천 데이터 입력 자체가 거절되어 정산 스냅샷의 일관성이 유지되는지 확인했습니다.
+- 동일 월 다수 취소
+  - 한 판매에 대해 같은 월 안에서 취소를 2회 등록하고, 환불 누적 금액과 취소 건수가 정확히 반영되는지 확인했습니다.
+- 잘못된 연월 형식
+  - `yearMonth=2025/03` 요청 시 400 응답과 유효성 메시지를 반환하는지 확인했습니다.
+- 미래 월 조회
+  - 판매/취소 내역이 없는 미래 `yearMonth` 요청 시 0원 응답을 일관되게 반환하는지 확인했습니다.
+- 잘못된 날짜 범위
+  - `startDate > endDate` 요청 시 400 응답과 날짜 범위 검증 메시지를 반환하는지 확인했습니다.
+- 환불 초과 요청
+  - 누적 환불 금액이 원 결제 금액을 초과하는 경우 409 응답을 반환하는지 확인했습니다.
+- 다월 기간 조회 + 월별 수수료율 적용
+  - `2025-01-01 ~ 2025-03-31`처럼 여러 달에 걸친 운영자 조회에서 월별 수수료율이 각각 적용되는지 검증했습니다.
+- 사전 집계 기반 CSV 검증
+  - 원천 판매/취소 테이블을 비워도 일별 사전 집계만으로 운영자 CSV를 생성할 수 있는지 검증했습니다.
+- 샘플 데이터 기반 경계값 검증
+  - 통합테스트가 시작될 때마다 과제 샘플 데이터를 직접 구성하고, 그 위에 테스트 전용 데이터를 추가해 동일 월 다수 취소, 정확한 월 경계 시각, 오프셋 환산 케이스를 재현했습니다.
+- CSV 다운로드 응답 검증
+  - 운영자 기간 집계 결과가 CSV 헤더, 크리에이터별 행, 전체 합계 행으로 정상 응답되는지 확인했습니다.
+
+추가한 이유:
+- 정산 과제의 핵심이 정상 집계뿐 아니라 경계값과 예외 상황 처리라고 판단했기 때문입니다.
+- 특히 환불 누적, 입력 형식 오류, 잘못된 기간 요청, 진행 중인 월 정산 생성 제한, 마감 월 데이터 입력 차단은 실제 운영 환경에서도 자주 발생할 수 있는 케이스라고 생각했습니다.
+
+## 미구현 / 제약사항
+- 운영자 집계는 원천 판매/취소를 직접 재집계하지 않고, `creator_daily_settlements` 일별 사전 집계를 읽은 뒤 애플리케이션 레벨에서 월별로 다시 묶어 수수료율을 적용합니다.
+- 일별 사전 집계는 판매/취소 등록 시 함께 갱신되는 파생 데이터이므로, 향후 원천 데이터를 쓰는 경로가 추가되면 동일한 집계 갱신도 함께 연결해야 합니다.
+- MySQL 프로필은 로컬 검증용이며, 운영 배포 설정까지 분리한 상태는 아닙니다.
+- 선택 구현 중 `정산 상태 관리`, `동일 기간 중복 정산 방지`는 현재 브랜치에서 반영했습니다.
+- 선택 구현 중 `CSV 응답`, `수수료율 변경 이력`은 반영했고, 실제 엑셀 파일 생성은 아직 구현하지 않았습니다.
+
+## AI 활용 범위
+- codex를 사용했습니다.
+- 코드 작성 전 패키지 구조 정리
+- 엔티티 / 서비스 / 컨트롤러 / 예외 처리 초안 작성
+- 서비스 분리, 공통 컴포넌트 분리, 가독성 리팩토링이 필요한 부분은 AI에 직접 특정 부분을 수정해달라 요청해서 수정했습니다.
+- 테스트 fixture 및 통합테스트 초안 작성
+- Docker Compose 기반 MySQL 실행 초안 작성
+- README 초안 작성, 코드 수정 후 README 업데이트
+- CSV 응답 초안 작성

@@ -1,0 +1,25 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: creator-settlement-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: settlement
+      MYSQL_USER: settlement
+      MYSQL_PASSWORD: settlement
+      MYSQL_ROOT_PASSWORD: root
+      TZ: Asia/Seoul
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+09:00
+    ports:
+      - "3306:3306"
+    tmpfs:
+      - /var/lib/mysql:size=512m
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "settlement", "-psettlement"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
