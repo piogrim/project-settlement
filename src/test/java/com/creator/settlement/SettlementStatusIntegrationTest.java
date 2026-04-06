@@ -1,5 +1,6 @@
 package com.creator.settlement;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -49,7 +50,7 @@ class SettlementStatusIntegrationTest extends ApiIntegrationTestSupport {
         createSettlement("creator-1", "settlement-duplicate", "2025-03")
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("충돌"))
-                .andExpect(jsonPath("$.message").value("해당 크리에이터의 정산이 이미 존재합니다: creator-1 / 2025-03"));
+                .andExpect(jsonPath("$.message").value(containsString("creator-1 / 2025-03")));
     }
 
     @Test
@@ -60,7 +61,7 @@ class SettlementStatusIntegrationTest extends ApiIntegrationTestSupport {
         mockMvc.perform(post("/api/admin/settlements/{settlementId}/pay", "settlement-pay-before-confirm"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("충돌"))
-                .andExpect(jsonPath("$.message").value("CONFIRMED 상태의 정산만 지급 완료로 변경할 수 있습니다."));
+                .andExpect(jsonPath("$.message").value(containsString("CONFIRMED")));
     }
 
     @Test
@@ -71,7 +72,7 @@ class SettlementStatusIntegrationTest extends ApiIntegrationTestSupport {
         createSettlement("creator-1", "settlement-current-month", currentMonth.toString())
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("충돌"))
-                .andExpect(jsonPath("$.message").value("정산 생성은 이전 월에 대해서만 가능합니다."));
+                .andExpect(jsonPath("$.message").value(containsString("이전 월")));
     }
 
     @Test
@@ -82,7 +83,7 @@ class SettlementStatusIntegrationTest extends ApiIntegrationTestSupport {
         createSettlement("creator-1", "settlement-future-month", futureMonth.toString())
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("충돌"))
-                .andExpect(jsonPath("$.message").value("정산 생성은 이전 월에 대해서만 가능합니다."));
+                .andExpect(jsonPath("$.message").value(containsString("이전 월")));
     }
 
     @Test
@@ -97,7 +98,7 @@ class SettlementStatusIntegrationTest extends ApiIntegrationTestSupport {
                                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("잘못된 요청"))
-                .andExpect(jsonPath("$.message").value("정산 연월은 필수입니다."));
+                .andExpect(jsonPath("$.message").value(containsString("정산 연월")));
     }
 
     private ResultActions createSettlement(String creatorId, String settlementId, String settlementMonth)

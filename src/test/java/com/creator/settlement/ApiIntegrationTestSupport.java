@@ -11,9 +11,11 @@ import com.creator.settlement.sale.domain.SaleCancellation;
 import com.creator.settlement.sale.domain.SaleRecord;
 import com.creator.settlement.sale.repository.SaleCancellationRepository;
 import com.creator.settlement.sale.repository.SaleRecordRepository;
+import com.creator.settlement.settlement.repository.DailySettlementAggregateRepository;
 import com.creator.settlement.settlement.domain.SettlementFeeRate;
-import com.creator.settlement.settlement.repository.SettlementRepository;
+import com.creator.settlement.settlement.repository.MonthlySettlementRepository;
 import com.creator.settlement.settlement.repository.SettlementFeeRateRepository;
+import com.creator.settlement.settlement.service.DailySettlementAggregateService;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
@@ -37,16 +39,22 @@ abstract class ApiIntegrationTestSupport {
     private CourseRepository courseRepository;
 
     @Autowired
-    private SaleRecordRepository saleRecordRepository;
+    protected SaleRecordRepository saleRecordRepository;
 
     @Autowired
-    private SaleCancellationRepository saleCancellationRepository;
+    protected SaleCancellationRepository saleCancellationRepository;
 
     @Autowired
-    private SettlementRepository settlementRepository;
+    private MonthlySettlementRepository monthlySettlementRepository;
 
     @Autowired
     private SettlementFeeRateRepository settlementFeeRateRepository;
+
+    @Autowired
+    private DailySettlementAggregateRepository dailySettlementAggregateRepository;
+
+    @Autowired
+    private DailySettlementAggregateService dailySettlementAggregateService;
 
     @BeforeEach
     void setUpRequiredScenario() {
@@ -55,8 +63,9 @@ abstract class ApiIntegrationTestSupport {
     }
 
     private void clearDatabase() {
-        settlementRepository.deleteAllInBatch();
+        monthlySettlementRepository.deleteAllInBatch();
         settlementFeeRateRepository.deleteAllInBatch();
+        dailySettlementAggregateRepository.deleteAllInBatch();
         saleCancellationRepository.deleteAllInBatch();
         saleRecordRepository.deleteAllInBatch();
         courseRepository.deleteAllInBatch();
@@ -78,15 +87,15 @@ abstract class ApiIntegrationTestSupport {
 
         SaleRecord sale3 = sale("sale-3", course2, "student-3", 80000, "2025-03-20T09:00:00+09:00");
         sale3.addCancellation(cancellation("cancel-1", 80000, "2025-03-25T12:00:00+09:00"));
-        saleRecordRepository.save(sale3);
+        saveSaleRecord(sale3);
 
         SaleRecord sale4 = sale("sale-4", course2, "student-4", 80000, "2025-03-22T11:00:00+09:00");
         sale4.addCancellation(cancellation("cancel-2", 30000, "2025-03-28T18:00:00+09:00"));
-        saleRecordRepository.save(sale4);
+        saveSaleRecord(sale4);
 
         SaleRecord sale5 = sale("sale-5", course3, "student-5", 60000, "2025-01-31T23:30:00+09:00");
         sale5.addCancellation(cancellation("cancel-3", 60000, "2025-02-01T09:00:00+09:00"));
-        saleRecordRepository.save(sale5);
+        saveSaleRecord(sale5);
 
         saveSale("sale-6", course3, "student-6", 60000, "2025-03-10T16:00:00+09:00");
         saveSale("sale-7", course4, "student-7", 120000, "2025-02-14T10:00:00+09:00");
@@ -108,7 +117,24 @@ abstract class ApiIntegrationTestSupport {
     }
 
     private void saveSale(String saleId, Course course, String studentId, long amount, String paidAt) {
-        saleRecordRepository.save(sale(saleId, course, studentId, amount, paidAt));
+        saveSaleRecord(sale(saleId, course, studentId, amount, paidAt));
+    }
+
+    private void saveSaleRecord(SaleRecord saleRecord) {
+        saleRecordRepository.save(saleRecord);
+        dailySettlementAggregateService.addSale(
+                saleRecord.getCourse().getCreator().getId(),
+                saleRecord.getPaidAt(),
+                saleRecord.getAmount()
+        );
+
+        for (SaleCancellation cancellation : saleRecord.getCancellations()) {
+            dailySettlementAggregateService.addCancellation(
+                    saleRecord.getCourse().getCreator().getId(),
+                    cancellation.getCanceledAt(),
+                    cancellation.getRefundAmount()
+            );
+        }
     }
 
     private SaleRecord sale(String saleId, Course course, String studentId, long amount, String paidAt) {

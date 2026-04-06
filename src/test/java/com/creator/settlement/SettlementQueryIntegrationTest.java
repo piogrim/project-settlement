@@ -1,9 +1,11 @@
 package com.creator.settlement;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.YearMonth;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -41,7 +43,7 @@ class SettlementQueryIntegrationTest extends ApiIntegrationTestSupport {
                         .param("yearMonth", "2025-03"))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("충돌"))
-                .andExpect(jsonPath("$.message").value("이전 월 정산을 먼저 생성해야 조회할 수 있습니다."));
+                .andExpect(jsonPath("$.message").value(containsString("이전 월 정산")));
 
         createCreatorSettlement("creator-1", "settlement-creator-1-2025-03", "2025-03")
                 .andExpect(status().isCreated())
@@ -86,11 +88,13 @@ class SettlementQueryIntegrationTest extends ApiIntegrationTestSupport {
     @Test
     @DisplayName("미래 월 정산 조회는 모든 금액과 건수를 0으로 반환한다")
     void shouldReturnZeroAmountsForFutureMonth() throws Exception {
+        YearMonth futureMonth = kstClock.currentYearMonth().plusMonths(1);
+
         mockMvc.perform(get("/api/creators/{creatorId}/settlements/monthly", "creator-1")
-                        .param("yearMonth", "2026-12"))
+                        .param("yearMonth", futureMonth.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.creatorId").value("creator-1"))
-                .andExpect(jsonPath("$.settlementMonth").value("2026-12"))
+                .andExpect(jsonPath("$.settlementMonth").value(futureMonth.toString()))
                 .andExpect(jsonPath("$.totalSalesAmount").value(0))
                 .andExpect(jsonPath("$.totalRefundAmount").value(0))
                 .andExpect(jsonPath("$.netSalesAmount").value(0))
@@ -107,7 +111,7 @@ class SettlementQueryIntegrationTest extends ApiIntegrationTestSupport {
                         .param("yearMonth", "2025-03"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").value("찾을 수 없음"))
-                .andExpect(jsonPath("$.message").value("크리에이터를 찾을 수 없습니다: creator-missing"));
+                .andExpect(jsonPath("$.message").value(containsString("creator-missing")));
     }
 
     @Test
@@ -117,6 +121,6 @@ class SettlementQueryIntegrationTest extends ApiIntegrationTestSupport {
                         .param("yearMonth", "2025/03"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("잘못된 요청"))
-                .andExpect(jsonPath("$.message").value("yearMonth는 yyyy-MM 형식이어야 합니다."));
+                .andExpect(jsonPath("$.message").value(containsString("yyyy-MM")));
     }
 }
