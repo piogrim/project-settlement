@@ -91,11 +91,11 @@ http://localhost:8080
 - 애플리케이션은 빈 DB로 시작하고, 필요한 기준 데이터는 `크리에이터 -> 강의 -> 판매 -> 취소` 순서로 직접 등록합니다.
 - 판매와 취소는 현재 월과 미래 월만 등록할 수 있습니다. 마감된 이전 월 데이터는 입력할 수 없습니다.
 - 한 판매 건에는 여러 번 부분 취소를 등록할 수 있고, 판매 건의 누적 환불 금액을 관리해 총 환불액이 원 결제 금액을 넘지 않도록 막습니다.
-- 크리에이터의 현재 월 정산 조회는 원천 판매/취소 데이터를 기준으로 실시간 계산합니다.
+- 크리에이터의 현재 월 정산 조회는 `DailySettlement` 일별 사전 집계를 기준으로 실시간 계산합니다.
 - 크리에이터의 이전 월 정산 조회는 먼저 정산 생성 API로 `MonthlySettlement` 스냅샷을 만든 뒤에만 가능합니다.
 - 이전 월 정산 생성은 크리에이터가 요청하고, 생성된 정산은 `PENDING` 상태로 저장됩니다.
 - 운영자는 생성된 정산을 `CONFIRMED`, `PAID` 상태로 전이합니다.
-- 운영자 기간 집계와 CSV 다운로드는 월 스냅샷이 아니라 `creator_daily_settlement_aggregates` 일별 사전 집계를 읽습니다.
+- 운영자 기간 집계와 CSV 다운로드는 월 스냅샷이 아니라 `creator_daily_settlements` 일별 사전 집계를 읽습니다.
 - 판매/취소 등록 시 KST 일자 기준 일별 사전 집계를 함께 갱신하고, 조회 시에는 이 일별 집계를 월별로 다시 묶어 수수료율을 적용합니다.
 - 수수료율은 기본 20%를 사용하며, 수수료율 이력이 있으면 해당 연월부터 이력 값을 우선 적용합니다.
 - 수수료율 이력은 현재 월과 미래 월에 대해서만 생성/수정할 수 있고, 과거 월 값은 소급 변경할 수 없습니다.
@@ -505,14 +505,14 @@ Content-Type: text/csv;charset=UTF-8
   - 컬럼: `refund_amount`, `canceled_at`
   - 인덱스: `canceled_at`
   - 한 판매 건에 대해 여러 부분 취소를 기록할 수 있습니다.
-- `DailySettlementAggregate` (`creator_daily_settlement_aggregates`)
-  - PK: `aggregate_id`
+- `DailySettlement` (`creator_daily_settlements`)
+  - PK: `daily_settlement_id`
   - FK: `creator_id -> creators.creator_id`
-  - 유니크 제약: `(creator_id, aggregate_date)`
-  - 컬럼: `aggregate_date`, `total_sales_amount`, `total_refund_amount`, `sale_count`, `cancel_count`
-  - 인덱스: `aggregate_date`, `(creator_id, aggregate_date)`
+  - 유니크 제약: `(creator_id, settlement_date)`
+  - 컬럼: `settlement_date`, `total_sales_amount`, `total_refund_amount`, `sale_count`, `cancel_count`
+  - 인덱스: `settlement_date`, `(creator_id, settlement_date)`
   - 운영자 기간 조회와 CSV 다운로드를 위한 일별 사전 집계 테이블입니다.
-  - `aggregate_id`는 `creatorId:aggregateDate` 형식으로 생성합니다.
+  - `daily_settlement_id`는 `creatorId:settlementDate` 형식으로 생성합니다.
 - `MonthlySettlement` (`settlements`)
   - PK: `settlement_id`
   - FK: `creator_id -> creators.creator_id`
@@ -531,7 +531,7 @@ Content-Type: text/csv;charset=UTF-8
 - `Creator 1 : N Course`
 - `Course 1 : N SaleRecord`
 - `SaleRecord 1 : N SaleCancellation`
-- `Creator 1 : N DailySettlementAggregate`
+- `Creator 1 : N DailySettlement`
 - `Creator 1 : N MonthlySettlement`
 - `SettlementFeeRate`는 독립 테이블이며, 조회 시 `effective_from` 기준으로 정산 계산에 적용됩니다.
 
@@ -542,7 +542,7 @@ Creator (creator_id)
   ├─< Course (course_id, creator_id)
   │    └─< SaleRecord (sale_id, course_id)
   │          └─< SaleCancellation (cancel_id, sale_id)
-  ├─< DailySettlementAggregate (aggregate_id, creator_id, aggregate_date) [unique: creator_id + aggregate_date]
+  ├─< DailySettlement (daily_settlement_id, creator_id, settlement_date) [unique: creator_id + settlement_date]
   └─< MonthlySettlement (settlement_id, creator_id, settlement_month) [unique: creator_id + settlement_month]
 
 SettlementFeeRate (settlement_fee_rate_id, effective_from) [unique: effective_from]
@@ -553,7 +553,7 @@ SettlementFeeRate (settlement_fee_rate_id, effective_from) [unique: effective_fr
 - 취소는 `canceledAt` 기준으로 집계합니다.
 - 월 경계와 기간 계산은 모두 KST 기준으로 처리하며, 내부 구현은 `시작 시각 이상` + `다음 경계 시각 미만` 방식으로 계산했습니다.
 - 기본 수수료율은 20%이며, 수수료율 이력을 등록하면 해당 연월부터는 등록된 수수료율을 우선 적용합니다.
-- 현재 월 조회는 아직 진행 중인 기간으로 보고 항상 원천 데이터를 기준으로 실시간 계산합니다.
+- 현재 월 조회는 아직 진행 중인 기간으로 보고 `DailySettlement` 일별 사전 집계를 기준으로 실시간 계산합니다.
 - 크리에이터의 이전 월 조회는 저장된 `MonthlySettlement` 스냅샷이 있을 때만 허용하며, 먼저 해당 월 정산을 생성해야 합니다.
 - 정산 생성은 마감된 월만 허용하며, 현재 월과 미래 월은 조회만 가능하고 생성은 허용하지 않습니다.
 - 운영자 기간 집계는 날짜 범위 기준 기능으로 보고, 월 스냅샷 대신 일별 사전 집계를 사용합니다.
@@ -574,7 +574,7 @@ SettlementFeeRate (settlement_fee_rate_id, effective_from) [unique: effective_fr
   - 크리에이터에게는 생성된 이전 월 정산 스냅샷을 보여주고, 운영자에게는 임의 날짜 구간의 집계 결과를 제공해야 하기 때문입니다.
 - 판매/취소 등록은 이전 월에 대해 차단했습니다.
   - 마감된 월의 원천 데이터를 뒤늦게 변경해 정산 스냅샷과 실제 조회 결과가 어긋나는 문제를 막기 위해서입니다.
-- 운영자 기간 집계용으로 `DailySettlementAggregate` 일별 사전 집계를 추가했습니다.
+- 운영자 기간 집계용으로 `DailySettlement` 일별 사전 집계를 추가했습니다.
   - 운영자 조회와 CSV 다운로드 시 원천 판매/취소를 매번 다시 스캔하지 않고, 쓰기 시점에 갱신된 일별 합계를 읽어 성능을 개선하기 위해서입니다.
 - 운영자 기간 집계는 일별 집계를 그대로 합산하지 않고, 조회 시 월별로 다시 묶은 뒤 수수료율을 적용합니다.
   - 임의 날짜 구간 조회를 지원하면서도 월별 수수료율 변경 규칙을 유지하기 위해서입니다.
@@ -645,7 +645,7 @@ gradlew.bat compileJava
 - 특히 환불 누적, 입력 형식 오류, 잘못된 기간 요청, 진행 중인 월 정산 생성 제한, 마감 월 데이터 입력 차단은 실제 운영 환경에서도 자주 발생할 수 있는 케이스라고 생각했습니다.
 
 ## 미구현 / 제약사항
-- 운영자 집계는 원천 판매/취소를 직접 재집계하지 않고, `creator_daily_settlement_aggregates` 일별 사전 집계를 읽은 뒤 애플리케이션 레벨에서 월별로 다시 묶어 수수료율을 적용합니다.
+- 운영자 집계는 원천 판매/취소를 직접 재집계하지 않고, `creator_daily_settlements` 일별 사전 집계를 읽은 뒤 애플리케이션 레벨에서 월별로 다시 묶어 수수료율을 적용합니다.
 - 일별 사전 집계는 판매/취소 등록 시 함께 갱신되는 파생 데이터이므로, 향후 원천 데이터를 쓰는 경로가 추가되면 동일한 집계 갱신도 함께 연결해야 합니다.
 - MySQL 프로필은 로컬 검증용이며, 운영 배포 설정까지 분리한 상태는 아닙니다.
 - 선택 구현 중 `정산 상태 관리`, `동일 기간 중복 정산 방지`는 현재 브랜치에서 반영했습니다.
