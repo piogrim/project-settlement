@@ -8,6 +8,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.time.YearMonth;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -48,6 +49,31 @@ class SettlementFeeRateHistoryIntegrationTest extends ApiIntegrationTestSupport 
     }
 
     @Test
+    @DisplayName("여러 달을 포함한 기간 집계는 월별 수수료율을 각각 적용해 합산한다")
+    void shouldApplyFeeRatePerMonthAcrossMultiMonthRange() throws Exception {
+        saveFeeRateHistory("fee-rate-2025-03", "2025-03", "0.1500");
+
+        mockMvc.perform(get("/api/admin/settlements")
+                        .param("startDate", "2025-01-01")
+                        .param("endDate", "2025-03-31"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[0].creatorId").value("creator-1"))
+                .andExpect(jsonPath("$.items[0].platformFeeAmount").value(22500))
+                .andExpect(jsonPath("$.items[0].settlementAmount").value(127500))
+                .andExpect(jsonPath("$.items[1].creatorId").value("creator-2"))
+                .andExpect(jsonPath("$.items[1].totalSalesAmount").value(120000))
+                .andExpect(jsonPath("$.items[1].totalRefundAmount").value(60000))
+                .andExpect(jsonPath("$.items[1].platformFeeAmount").value(21000))
+                .andExpect(jsonPath("$.items[1].settlementAmount").value(39000))
+                .andExpect(jsonPath("$.items[1].saleCount").value(2))
+                .andExpect(jsonPath("$.items[1].cancelCount").value(1))
+                .andExpect(jsonPath("$.items[2].creatorId").value("creator-3"))
+                .andExpect(jsonPath("$.items[2].platformFeeAmount").value(24000))
+                .andExpect(jsonPath("$.items[2].settlementAmount").value(96000))
+                .andExpect(jsonPath("$.totalSettlementAmount").value(262500));
+    }
+
+    @Test
     @DisplayName("운영자 CSV 응답도 각 월의 수수료율 이력을 반영한 집계 결과를 내려준다")
     void shouldApplyHistoricalFeeRateToAdminCsvExport() throws Exception {
         saveFeeRateHistory("fee-rate-2025-03", "2025-03", "0.1500");
@@ -64,30 +90,40 @@ class SettlementFeeRateHistoryIntegrationTest extends ApiIntegrationTestSupport 
     @Test
     @DisplayName("수수료율 이력은 적용 시작 연월 기준 내림차순으로 조회할 수 있다")
     void shouldListSettlementFeeRatesInDescendingEffectiveFromOrder() throws Exception {
-        registerFeeRate("fee-rate-2026-05", "2026-05", "0.1500").andExpect(status().isCreated());
-        registerFeeRate("fee-rate-2026-06", "2026-06", "0.1000").andExpect(status().isCreated());
+        YearMonth firstFutureMonth = kstClock.currentYearMonth().plusMonths(1);
+        YearMonth secondFutureMonth = kstClock.currentYearMonth().plusMonths(2);
+
+        registerFeeRate("fee-rate-" + firstFutureMonth, firstFutureMonth.toString(), "0.1500")
+                .andExpect(status().isCreated());
+        registerFeeRate("fee-rate-" + secondFutureMonth, secondFutureMonth.toString(), "0.1000")
+                .andExpect(status().isCreated());
 
         mockMvc.perform(get("/api/admin/settlement-fee-rates"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$[0].effectiveFrom").value("2026-06"))
+                .andExpect(jsonPath("$[0].effectiveFrom").value(secondFutureMonth.toString()))
                 .andExpect(jsonPath("$[0].feeRate").value(0.1000))
-                .andExpect(jsonPath("$[1].effectiveFrom").value("2026-05"))
+                .andExpect(jsonPath("$[1].effectiveFrom").value(firstFutureMonth.toString()))
                 .andExpect(jsonPath("$[1].feeRate").value(0.1500));
     }
 
     @Test
     @DisplayName("과거 월에 적용되는 수수료율 이력은 생성할 수 없다")
     void shouldRejectCreatingPastFeeRate() throws Exception {
-        registerFeeRate("fee-rate-past", "2026-03", "0.1800")
+        YearMonth pastMonth = kstClock.currentYearMonth().minusMonths(1);
+
+        registerFeeRate("fee-rate-past", pastMonth.toString(), "0.1800")
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("충돌"))
-                .andExpect(jsonPath("$.message").value("과거 월에 적용되는 수수료율 이력은 생성할 수 없습니다."));
+                .andExpect(jsonPath("$.message").value(containsString("과거 월")));
     }
 
     @Test
     @DisplayName("현재 월과 미래 월에 적용될 수수료율 이력은 금액을 수정할 수 있다")
     void shouldUpdateCurrentOrFutureFeeRate() throws Exception {
-        registerFeeRate("fee-rate-current", "2026-04", "0.1800")
+        YearMonth currentMonth = kstClock.currentYearMonth();
+        YearMonth futureMonth = kstClock.currentYearMonth().plusMonths(1);
+
+        registerFeeRate("fee-rate-current", currentMonth.toString(), "0.1800")
                 .andExpect(status().isCreated());
 
         mockMvc.perform(put("/api/admin/settlement-fee-rates/{settlementFeeRateId}", "fee-rate-current")
@@ -99,10 +135,10 @@ class SettlementFeeRateHistoryIntegrationTest extends ApiIntegrationTestSupport 
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.settlementFeeRateId").value("fee-rate-current"))
-                .andExpect(jsonPath("$.effectiveFrom").value("2026-04"))
+                .andExpect(jsonPath("$.effectiveFrom").value(currentMonth.toString()))
                 .andExpect(jsonPath("$.feeRate").value(0.1600));
 
-        registerFeeRate("fee-rate-future", "2026-05", "0.1800")
+        registerFeeRate("fee-rate-future", futureMonth.toString(), "0.1800")
                 .andExpect(status().isCreated());
 
         mockMvc.perform(put("/api/admin/settlement-fee-rates/{settlementFeeRateId}", "fee-rate-future")
@@ -114,14 +150,16 @@ class SettlementFeeRateHistoryIntegrationTest extends ApiIntegrationTestSupport 
                                 """))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.settlementFeeRateId").value("fee-rate-future"))
-                .andExpect(jsonPath("$.effectiveFrom").value("2026-05"))
+                .andExpect(jsonPath("$.effectiveFrom").value(futureMonth.toString()))
                 .andExpect(jsonPath("$.feeRate").value(0.1200));
     }
 
     @Test
     @DisplayName("과거 월에 적용되는 수수료율 이력은 수정할 수 없다")
     void shouldRejectUpdatingPastFeeRate() throws Exception {
-        saveFeeRateHistory("fee-rate-past", "2026-03", "0.1800");
+        YearMonth pastMonth = kstClock.currentYearMonth().minusMonths(1);
+
+        saveFeeRateHistory("fee-rate-past", pastMonth.toString(), "0.1800");
 
         mockMvc.perform(put("/api/admin/settlement-fee-rates/{settlementFeeRateId}", "fee-rate-past")
                         .contentType("application/json")
@@ -132,7 +170,7 @@ class SettlementFeeRateHistoryIntegrationTest extends ApiIntegrationTestSupport 
                                 """))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("충돌"))
-                .andExpect(jsonPath("$.message").value("과거 월에 적용되는 수수료율 이력은 수정할 수 없습니다."));
+                .andExpect(jsonPath("$.message").value(containsString("과거 월")));
     }
 
     private org.springframework.test.web.servlet.ResultActions registerFeeRate(

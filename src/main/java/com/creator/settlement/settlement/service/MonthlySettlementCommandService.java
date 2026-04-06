@@ -3,17 +3,14 @@ package com.creator.settlement.settlement.service;
 import com.creator.settlement.common.exception.BusinessRuleViolationException;
 import com.creator.settlement.common.exception.ResourceNotFoundException;
 import com.creator.settlement.common.time.KstClock;
-import com.creator.settlement.common.time.KstPeriodResolver;
 import com.creator.settlement.creator.domain.Creator;
 import com.creator.settlement.creator.repository.CreatorRepository;
-import com.creator.settlement.sale.domain.SaleCancellation;
-import com.creator.settlement.sale.domain.SaleRecord;
-import com.creator.settlement.sale.repository.SaleCancellationRepository;
-import com.creator.settlement.sale.repository.SaleRecordRepository;
-import com.creator.settlement.settlement.domain.Settlement;
-import com.creator.settlement.settlement.dto.command.RegisterSettlementCommand;
-import com.creator.settlement.settlement.dto.response.SettlementResult;
-import com.creator.settlement.settlement.repository.SettlementRepository;
+import com.creator.settlement.settlement.domain.DailySettlement;
+import com.creator.settlement.settlement.domain.MonthlySettlement;
+import com.creator.settlement.settlement.dto.command.CreateMonthlySettlementCommand;
+import com.creator.settlement.settlement.dto.response.MonthlySettlementSnapshotResult;
+import com.creator.settlement.settlement.repository.DailySettlementRepository;
+import com.creator.settlement.settlement.repository.MonthlySettlementRepository;
 import com.creator.settlement.settlement.support.SettlementCalculator;
 import com.creator.settlement.settlement.support.SettlementFeeRateResolver;
 import jakarta.validation.constraints.NotBlank;
@@ -30,52 +27,42 @@ import org.springframework.validation.annotation.Validated;
 @Validated
 @RequiredArgsConstructor
 @Transactional
-public class SettlementCommandService {
+public class MonthlySettlementCommandService {
 
     private final CreatorRepository creatorRepository;
-    private final SaleRecordRepository saleRecordRepository;
-    private final SaleCancellationRepository saleCancellationRepository;
-    private final SettlementRepository settlementRepository;
+    private final DailySettlementRepository dailySettlementRepository;
+    private final MonthlySettlementRepository monthlySettlementRepository;
     private final SettlementCalculator settlementCalculator;
     private final SettlementFeeRateResolver settlementFeeRateResolver;
-    private final KstPeriodResolver kstPeriodResolver;
     private final KstClock kstClock;
 
-    public SettlementResult registerSettlement(RegisterSettlementCommand command) {
+    public MonthlySettlementSnapshotResult createSettlement(CreateMonthlySettlementCommand command) {
         Creator creator = creatorRepository.findById(command.creatorId())
                 .orElseThrow(() -> new ResourceNotFoundException("크리에이터를 찾을 수 없습니다: " + command.creatorId()));
 
         validateCreatableSettlementMonth(command.settlementMonth());
 
-        if (settlementRepository.existsByCreator_IdAndSettlementMonth(creator.getId(), command.settlementMonth())) {
-            throw new BusinessRuleViolationException("해당 크리에이터의 정산이 이미 존재합니다: "
-                    + creator.getId() + " / " + command.settlementMonth());
+        if (monthlySettlementRepository.existsByCreatorIdAndSettlementMonth(creator.getId(), command.settlementMonth())) {
+            throw new BusinessRuleViolationException(
+                    "해당 크리에이터의 정산이 이미 존재합니다: " + creator.getId() + " / " + command.settlementMonth()
+            );
         }
 
         String settlementId = resolveSettlementId(command.settlementId());
-        if (settlementRepository.existsById(settlementId)) {
+        if (monthlySettlementRepository.existsById(settlementId)) {
             throw new BusinessRuleViolationException("이미 존재하는 정산 ID입니다: " + settlementId);
         }
 
-        KstPeriodResolver.KstRange monthlyRange = kstPeriodResolver.monthlyRange(command.settlementMonth());
-        List<SaleRecord> saleRecords = saleRecordRepository
-                .findAllByCourseCreatorIdAndPaidAtGreaterThanEqualAndPaidAtLessThan(
+        List<DailySettlement> dailySettlements = dailySettlementRepository
+                .findAllForCreatorInSettlementDateRange(
                         creator.getId(),
-                        monthlyRange.startAt(),
-                        monthlyRange.endExclusive()
+                        command.settlementMonth().atDay(1),
+                        command.settlementMonth().atEndOfMonth()
                 );
-        List<SaleCancellation> saleCancellations = saleCancellationRepository
-                .findAllBySaleRecordCourseCreatorIdAndCanceledAtGreaterThanEqualAndCanceledAtLessThan(
-                        creator.getId(),
-                        monthlyRange.startAt(),
-                        monthlyRange.endExclusive()
-                );
-
         BigDecimal feeRate = settlementFeeRateResolver.resolve(command.settlementMonth());
-        SettlementCalculator.SettlementAmounts amounts =
-                settlementCalculator.calculate(saleRecords, saleCancellations, feeRate);
+        SettlementCalculator.SettlementAmounts amounts = settlementCalculator.calculate(dailySettlements, feeRate);
 
-        Settlement settlement = settlementRepository.save(Settlement.builder()
+        MonthlySettlement monthlySettlement = monthlySettlementRepository.save(MonthlySettlement.builder()
                 .id(settlementId)
                 .creator(creator)
                 .settlementMonth(command.settlementMonth())
@@ -89,23 +76,27 @@ public class SettlementCommandService {
                 .cancelCount(Math.toIntExact(amounts.cancelCount()))
                 .build());
 
-        return SettlementResult.from(settlement);
+        return MonthlySettlementSnapshotResult.from(monthlySettlement);
     }
 
-    public SettlementResult confirmSettlement(@NotBlank(message = "정산 ID는 필수입니다.") String settlementId) {
-        Settlement settlement = findSettlement(settlementId);
-        settlement.confirm(kstClock.now());
-        return SettlementResult.from(settlement);
+    public MonthlySettlementSnapshotResult confirmSettlement(
+            @NotBlank(message = "정산 ID는 필수입니다.") String settlementId
+    ) {
+        MonthlySettlement monthlySettlement = findMonthlySettlement(settlementId);
+        monthlySettlement.confirm(kstClock.now());
+        return MonthlySettlementSnapshotResult.from(monthlySettlement);
     }
 
-    public SettlementResult markSettlementPaid(@NotBlank(message = "정산 ID는 필수입니다.") String settlementId) {
-        Settlement settlement = findSettlement(settlementId);
-        settlement.markPaid(kstClock.now());
-        return SettlementResult.from(settlement);
+    public MonthlySettlementSnapshotResult markSettlementPaid(
+            @NotBlank(message = "정산 ID는 필수입니다.") String settlementId
+    ) {
+        MonthlySettlement monthlySettlement = findMonthlySettlement(settlementId);
+        monthlySettlement.markPaid(kstClock.now());
+        return MonthlySettlementSnapshotResult.from(monthlySettlement);
     }
 
-    private Settlement findSettlement(String settlementId) {
-        return settlementRepository.findById(settlementId)
+    private MonthlySettlement findMonthlySettlement(String settlementId) {
+        return monthlySettlementRepository.findById(settlementId)
                 .orElseThrow(() -> new ResourceNotFoundException("정산 내역을 찾을 수 없습니다: " + settlementId));
     }
 

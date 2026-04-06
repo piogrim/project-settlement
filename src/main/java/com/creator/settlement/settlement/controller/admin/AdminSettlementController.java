@@ -1,11 +1,11 @@
 package com.creator.settlement.settlement.controller.admin;
 
-import com.creator.settlement.settlement.dto.query.AdminSettlementSummaryQuery;
-import com.creator.settlement.settlement.dto.response.AdminSettlementSummaryResult;
-import com.creator.settlement.settlement.dto.response.SettlementResult;
-import com.creator.settlement.settlement.service.AdminSettlementQueryService;
-import com.creator.settlement.settlement.service.SettlementCommandService;
-import com.creator.settlement.settlement.support.SettlementCsvExporter;
+import com.creator.settlement.settlement.dto.query.SettlementPeriodSummaryQuery;
+import com.creator.settlement.settlement.dto.response.MonthlySettlementSnapshotResult;
+import com.creator.settlement.settlement.dto.response.SettlementPeriodSummaryResult;
+import com.creator.settlement.settlement.service.DailySettlementQueryService;
+import com.creator.settlement.settlement.service.MonthlySettlementCommandService;
+import com.creator.settlement.settlement.support.AdminSettlementSummaryCsvExporter;
 import java.time.LocalDate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ContentDisposition;
@@ -25,12 +25,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/admin/settlements")
 public class AdminSettlementController {
 
-    private final AdminSettlementQueryService adminSettlementQueryService;
-    private final SettlementCommandService settlementCommandService;
-    private final SettlementCsvExporter settlementCsvExporter;
+    private final DailySettlementQueryService dailySettlementQueryService;
+    private final MonthlySettlementCommandService monthlySettlementCommandService;
+    private final AdminSettlementSummaryCsvExporter adminSettlementSummaryCsvExporter;
 
     @GetMapping
-    public AdminSettlementSummaryResult getSettlementSummary(
+    public SettlementPeriodSummaryResult getSettlementSummary(
             @RequestParam
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
             LocalDate startDate,
@@ -38,8 +38,8 @@ public class AdminSettlementController {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
             LocalDate endDate
     ) {
-        return adminSettlementQueryService.getAdminSettlementSummary(
-                new AdminSettlementSummaryQuery(startDate, endDate)
+        return dailySettlementQueryService.getAdminSettlementSummary(
+                new SettlementPeriodSummaryQuery(startDate, endDate)
         );
     }
 
@@ -52,10 +52,10 @@ public class AdminSettlementController {
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
             LocalDate endDate
     ) {
-        AdminSettlementSummaryResult summary = adminSettlementQueryService.getAdminSettlementSummary(
-                new AdminSettlementSummaryQuery(startDate, endDate)
+        SettlementPeriodSummaryResult summary = dailySettlementQueryService.getAdminSettlementSummary(
+                new SettlementPeriodSummaryQuery(startDate, endDate)
         );
-        String csv = settlementCsvExporter.export(summary);
+        String csv = adminSettlementSummaryCsvExporter.export(summary);
 
         String fileName = "settlement-summary-%s-to-%s.csv".formatted(startDate, endDate);
 
@@ -69,12 +69,12 @@ public class AdminSettlementController {
     }
 
     @PostMapping("/{settlementId}/confirm")
-    public SettlementResult confirmSettlement(@PathVariable String settlementId) {
-        return settlementCommandService.confirmSettlement(settlementId);
+    public MonthlySettlementSnapshotResult confirmSettlement(@PathVariable String settlementId) {
+        return monthlySettlementCommandService.confirmSettlement(settlementId);
     }
 
     @PostMapping("/{settlementId}/pay")
-    public SettlementResult markSettlementPaid(@PathVariable String settlementId) {
-        return settlementCommandService.markSettlementPaid(settlementId);
+    public MonthlySettlementSnapshotResult markSettlementPaid(@PathVariable String settlementId) {
+        return monthlySettlementCommandService.markSettlementPaid(settlementId);
     }
 }

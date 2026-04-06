@@ -30,7 +30,7 @@ public class SaleQueryService {
         KstPeriodResolver.KstRange paidAtRange =
                 kstPeriodResolver.optionalDateRange(criteria.startDate(), criteria.endDate());
 
-        return saleRecordRepository.findSaleRecordsByCreatorAndPaidAtRange(
+        return saleRecordRepository.findAllForCreatorInPaidAtRangeOrderByPaidAtDesc(
                         criteria.creatorId(),
                         paidAtRange.startAt(),
                         paidAtRange.endExclusive()

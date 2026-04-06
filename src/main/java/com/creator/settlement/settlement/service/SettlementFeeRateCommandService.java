@@ -4,9 +4,9 @@ import com.creator.settlement.common.exception.BusinessRuleViolationException;
 import com.creator.settlement.common.exception.ResourceNotFoundException;
 import com.creator.settlement.common.time.KstClock;
 import com.creator.settlement.settlement.domain.SettlementFeeRate;
-import com.creator.settlement.settlement.dto.command.RegisterSettlementFeeRateCommand;
+import com.creator.settlement.settlement.dto.command.CreateSettlementFeeRateCommand;
 import com.creator.settlement.settlement.dto.command.UpdateSettlementFeeRateCommand;
-import com.creator.settlement.settlement.dto.response.SettlementFeeRateResult;
+import com.creator.settlement.settlement.dto.response.SettlementFeeRateHistoryResult;
 import com.creator.settlement.settlement.repository.SettlementFeeRateRepository;
 import java.time.YearMonth;
 import java.util.UUID;
@@ -22,7 +22,7 @@ public class SettlementFeeRateCommandService {
     private final SettlementFeeRateRepository settlementFeeRateRepository;
     private final KstClock kstClock;
 
-    public SettlementFeeRateResult registerSettlementFeeRate(RegisterSettlementFeeRateCommand command) {
+    public SettlementFeeRateHistoryResult createSettlementFeeRate(CreateSettlementFeeRateCommand command) {
         validateCreatableEffectiveFrom(command.effectiveFrom());
 
         if (settlementFeeRateRepository.existsByEffectiveFrom(command.effectiveFrom())) {
@@ -43,10 +43,10 @@ public class SettlementFeeRateCommandService {
                 .createdAt(kstClock.now())
                 .build());
 
-        return SettlementFeeRateResult.from(settlementFeeRate);
+        return SettlementFeeRateHistoryResult.from(settlementFeeRate);
     }
 
-    public SettlementFeeRateResult updateSettlementFeeRate(UpdateSettlementFeeRateCommand command) {
+    public SettlementFeeRateHistoryResult updateSettlementFeeRate(UpdateSettlementFeeRateCommand command) {
         SettlementFeeRate settlementFeeRate = settlementFeeRateRepository.findById(command.settlementFeeRateId())
                 .orElseThrow(() -> new ResourceNotFoundException(
                         "수수료율 이력을 찾을 수 없습니다: " + command.settlementFeeRateId()
@@ -55,7 +55,7 @@ public class SettlementFeeRateCommandService {
         validateUpdatableEffectiveFrom(settlementFeeRate.getEffectiveFrom());
         settlementFeeRate.changeFeeRate(command.feeRate());
 
-        return SettlementFeeRateResult.from(settlementFeeRate);
+        return SettlementFeeRateHistoryResult.from(settlementFeeRate);
     }
 
     private String resolveId(String candidate) {

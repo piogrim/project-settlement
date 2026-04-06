@@ -1,11 +1,11 @@
 package com.creator.settlement.settlement.controller.creator;
 
 import com.creator.settlement.common.exception.InvalidRequestException;
-import com.creator.settlement.settlement.dto.request.CreateSettlementRequest;
-import com.creator.settlement.settlement.dto.response.CreatorMonthlySettlementResult;
-import com.creator.settlement.settlement.dto.response.SettlementResult;
-import com.creator.settlement.settlement.service.CreatorSettlementQueryService;
-import com.creator.settlement.settlement.service.SettlementCommandService;
+import com.creator.settlement.settlement.dto.request.CreateMonthlySettlementRequest;
+import com.creator.settlement.settlement.dto.response.CreatorMonthlySettlementDetailResult;
+import com.creator.settlement.settlement.dto.response.MonthlySettlementSnapshotResult;
+import com.creator.settlement.settlement.service.MonthlySettlementQueryService;
+import com.creator.settlement.settlement.service.MonthlySettlementCommandService;
 import jakarta.validation.Valid;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
@@ -23,28 +23,28 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/creators/{creatorId}/settlements")
-public class SettlementController {
+public class CreatorSettlementController {
 
-    private final CreatorSettlementQueryService creatorSettlementQueryService;
-    private final SettlementCommandService settlementCommandService;
+    private final MonthlySettlementQueryService monthlySettlementQueryService;
+    private final MonthlySettlementCommandService monthlySettlementCommandService;
 
     @PostMapping
-    public ResponseEntity<SettlementResult> registerSettlement(
+    public ResponseEntity<MonthlySettlementSnapshotResult> createSettlement(
             @PathVariable String creatorId,
-            @Valid @RequestBody CreateSettlementRequest request
+            @Valid @RequestBody CreateMonthlySettlementRequest request
     ) {
-        SettlementResult result = settlementCommandService.registerSettlement(
+        MonthlySettlementSnapshotResult result = monthlySettlementCommandService.createSettlement(
                 request.toCommand(creatorId, parseYearMonth(request.settlementMonth()))
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 
     @GetMapping("/monthly")
-    public CreatorMonthlySettlementResult getCreatorMonthlySettlement(
+    public CreatorMonthlySettlementDetailResult getCreatorMonthlySettlement(
             @PathVariable String creatorId,
             @RequestParam("yearMonth") String yearMonth
     ) {
-        return creatorSettlementQueryService.getCreatorMonthlySettlement(creatorId, parseYearMonth(yearMonth));
+        return monthlySettlementQueryService.getCreatorMonthlySettlement(creatorId, parseYearMonth(yearMonth));
     }
 
     private YearMonth parseYearMonth(String yearMonth) {

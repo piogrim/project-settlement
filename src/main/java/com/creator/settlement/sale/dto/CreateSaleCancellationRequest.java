@@ -13,7 +13,7 @@ public record CreateSaleCancellationRequest(
         @NotNull(message = "취소 일시는 필수입니다.") OffsetDateTime canceledAt
 ) {
 
-    public RegisterSaleCancellationCommand toCommand(String saleId) {
-        return new RegisterSaleCancellationCommand(cancellationId, saleId, refundAmount, canceledAt);
+    public CreateSaleCancellationCommand toCommand(String saleId) {
+        return new CreateSaleCancellationCommand(cancellationId, saleId, refundAmount, canceledAt);
     }
 }

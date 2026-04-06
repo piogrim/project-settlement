@@ -1,6 +1,6 @@
 package com.creator.settlement.settlement.dto.request;
 
-import com.creator.settlement.settlement.dto.command.RegisterSettlementFeeRateCommand;
+import com.creator.settlement.settlement.dto.command.CreateSettlementFeeRateCommand;
 import com.creator.settlement.settlement.support.SettlementPolicy;
 import jakarta.validation.constraints.DecimalMax;
 import jakarta.validation.constraints.DecimalMin;
@@ -18,7 +18,7 @@ public record CreateSettlementFeeRateRequest(
         BigDecimal feeRate
 ) {
 
-    public RegisterSettlementFeeRateCommand toCommand(YearMonth parsedEffectiveFrom) {
-        return new RegisterSettlementFeeRateCommand(settlementFeeRateId, parsedEffectiveFrom, feeRate);
+    public CreateSettlementFeeRateCommand toCommand(YearMonth parsedEffectiveFrom) {
+        return new CreateSettlementFeeRateCommand(settlementFeeRateId, parsedEffectiveFrom, feeRate);
     }
 }

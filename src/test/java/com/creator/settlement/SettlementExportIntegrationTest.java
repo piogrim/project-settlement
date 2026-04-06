@@ -31,4 +31,20 @@ class SettlementExportIntegrationTest extends ApiIntegrationTestSupport {
                 .andExpect(content().string(containsString("2025-03-01,2025-03-31,creator-3,박강사,0,0,0,0,0,0,0")))
                 .andExpect(content().string(containsString("2025-03-01,2025-03-31,TOTAL,전체 합계,320000,110000,210000,42000,168000,5,2")));
     }
+
+    @Test
+    @DisplayName("운영자 CSV는 원천 판매 테이블을 비워도 사전 집계 데이터로 생성된다")
+    void shouldExportAdminSettlementSummaryFromPrecomputedDailySettlements() throws Exception {
+        saleCancellationRepository.deleteAllInBatch();
+        saleRecordRepository.deleteAllInBatch();
+
+        mockMvc.perform(get("/api/admin/settlements/export/csv")
+                        .param("startDate", "2025-03-01")
+                        .param("endDate", "2025-03-31"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("text/csv;charset=UTF-8"))
+                .andExpect(content().string(containsString("2025-03-01,2025-03-31,creator-1,김강사,260000,110000,150000,30000,120000,4,2")))
+                .andExpect(content().string(containsString("2025-03-01,2025-03-31,creator-2,이강사,60000,0,60000,12000,48000,1,0")))
+                .andExpect(content().string(containsString("2025-03-01,2025-03-31,TOTAL,전체 합계,320000,110000,210000,42000,168000,5,2")));
+    }
 }

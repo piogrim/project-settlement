@@ -1,19 +1,19 @@
 package com.creator.settlement.settlement.support;
 
-import com.creator.settlement.settlement.dto.response.AdminSettlementSummaryResult;
-import com.creator.settlement.settlement.dto.response.CreatorSettlementSummaryItem;
+import com.creator.settlement.settlement.dto.response.SettlementPeriodSummaryItem;
+import com.creator.settlement.settlement.dto.response.SettlementPeriodSummaryResult;
 import java.math.BigDecimal;
 import java.util.StringJoiner;
 import org.springframework.stereotype.Component;
 
 @Component
-public class SettlementCsvExporter {
+public class AdminSettlementSummaryCsvExporter {
 
-    public String export(AdminSettlementSummaryResult summary) {
+    public String export(SettlementPeriodSummaryResult summary) {
         StringBuilder csv = new StringBuilder();
         csv.append(header()).append('\n');
 
-        for (CreatorSettlementSummaryItem item : summary.items()) {
+        for (SettlementPeriodSummaryItem item : summary.items()) {
             csv.append(toRow(summary, item)).append('\n');
         }
 
@@ -29,7 +29,7 @@ public class SettlementCsvExporter {
                 "크리에이터명",
                 "총 판매 금액",
                 "총 환불 금액",
-                "순 판매 금액",
+                "순 매출 금액",
                 "플랫폼 수수료",
                 "정산 예정 금액",
                 "판매 건수",
@@ -37,7 +37,7 @@ public class SettlementCsvExporter {
         );
     }
 
-    private String toRow(AdminSettlementSummaryResult summary, CreatorSettlementSummaryItem item) {
+    private String toRow(SettlementPeriodSummaryResult summary, SettlementPeriodSummaryItem item) {
         return join(
                 summary.startDate(),
                 summary.endDate(),
@@ -53,7 +53,7 @@ public class SettlementCsvExporter {
         );
     }
 
-    private String totalRow(AdminSettlementSummaryResult summary) {
+    private String totalRow(SettlementPeriodSummaryResult summary) {
         Totals totals = calculateTotals(summary);
 
         return join(
@@ -71,7 +71,7 @@ public class SettlementCsvExporter {
         );
     }
 
-    private Totals calculateTotals(AdminSettlementSummaryResult summary) {
+    private Totals calculateTotals(SettlementPeriodSummaryResult summary) {
         BigDecimal totalSalesAmount = BigDecimal.ZERO;
         BigDecimal totalRefundAmount = BigDecimal.ZERO;
         BigDecimal netSalesAmount = BigDecimal.ZERO;
@@ -79,7 +79,7 @@ public class SettlementCsvExporter {
         long saleCount = 0;
         long cancelCount = 0;
 
-        for (CreatorSettlementSummaryItem item : summary.items()) {
+        for (SettlementPeriodSummaryItem item : summary.items()) {
             totalSalesAmount = totalSalesAmount.add(item.totalSalesAmount());
             totalRefundAmount = totalRefundAmount.add(item.totalRefundAmount());
             netSalesAmount = netSalesAmount.add(item.netSalesAmount());

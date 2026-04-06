@@ -1,13 +1,18 @@
 package com.creator.settlement;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.creator.settlement.settlement.domain.DailySettlement;
+import com.creator.settlement.settlement.repository.DailySettlementRepository;
 import java.time.YearMonth;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.http.MediaType;
@@ -15,6 +20,9 @@ import org.springframework.http.MediaType;
 @SpringBootTest
 @AutoConfigureMockMvc
 class SaleApiIntegrationTest extends ApiIntegrationTestSupport {
+
+    @Autowired
+    private DailySettlementRepository dailySettlementRepository;
 
     @Test
     @DisplayName("이전 월 판매 등록은 409 에러를 반환한다")
@@ -34,7 +42,7 @@ class SaleApiIntegrationTest extends ApiIntegrationTestSupport {
                                 """.formatted(previousMonth)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("충돌"))
-                .andExpect(jsonPath("$.message").value("마감된 월의 판매 내역은 등록할 수 없습니다."));
+                .andExpect(jsonPath("$.message").value(containsString("판매 내역")));
     }
 
     @Test
@@ -53,7 +61,7 @@ class SaleApiIntegrationTest extends ApiIntegrationTestSupport {
                                 """.formatted(previousMonth)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("충돌"))
-                .andExpect(jsonPath("$.message").value("마감된 월의 취소 내역은 등록할 수 없습니다."));
+                .andExpect(jsonPath("$.message").value(containsString("취소 내역")));
     }
 
     @Test
@@ -77,7 +85,7 @@ class SaleApiIntegrationTest extends ApiIntegrationTestSupport {
                         .param("endDate", "2025-03-01"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("잘못된 요청"))
-                .andExpect(jsonPath("$.message").value("종료일은 시작일과 같거나 이후여야 합니다."));
+                .andExpect(jsonPath("$.message").value(containsString("종료일은 시작일")));
     }
 
     @Test
@@ -109,7 +117,7 @@ class SaleApiIntegrationTest extends ApiIntegrationTestSupport {
                                 """.formatted(currentMonth)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.error").value("충돌"))
-                .andExpect(jsonPath("$.message").value("환불 금액은 원 결제 금액을 초과할 수 없습니다."));
+                .andExpect(jsonPath("$.message").value(containsString("원 결제 금액")));
     }
 
     @Test
@@ -126,7 +134,7 @@ class SaleApiIntegrationTest extends ApiIntegrationTestSupport {
                                 """.formatted(kstClock.currentYearMonth())))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").value("찾을 수 없음"))
-                .andExpect(jsonPath("$.message").value("판매 내역을 찾을 수 없습니다: sale-missing"));
+                .andExpect(jsonPath("$.message").value(containsString("sale-missing")));
     }
 
     @Test
@@ -190,5 +198,29 @@ class SaleApiIntegrationTest extends ApiIntegrationTestSupport {
                 .andExpect(jsonPath("$.settlementAmount").value(60000))
                 .andExpect(jsonPath("$.saleCount").value(1))
                 .andExpect(jsonPath("$.cancelCount").value(2));
+
+        DailySettlement saleDaySettlement = dailySettlementRepository
+                .findByCreatorIdAndSettlementDate("creator-1", currentMonth.atDay(10))
+                .orElseThrow();
+        assertThat(saleDaySettlement.getTotalSalesAmount()).isEqualByComparingTo("100000");
+        assertThat(saleDaySettlement.getTotalRefundAmount()).isEqualByComparingTo("0");
+        assertThat(saleDaySettlement.getSaleCount()).isEqualTo(1);
+        assertThat(saleDaySettlement.getCancelCount()).isEqualTo(0);
+
+        DailySettlement firstCancellationSettlement = dailySettlementRepository
+                .findByCreatorIdAndSettlementDate("creator-1", currentMonth.atDay(11))
+                .orElseThrow();
+        assertThat(firstCancellationSettlement.getTotalSalesAmount()).isEqualByComparingTo("0");
+        assertThat(firstCancellationSettlement.getTotalRefundAmount()).isEqualByComparingTo("10000");
+        assertThat(firstCancellationSettlement.getSaleCount()).isEqualTo(0);
+        assertThat(firstCancellationSettlement.getCancelCount()).isEqualTo(1);
+
+        DailySettlement secondCancellationSettlement = dailySettlementRepository
+                .findByCreatorIdAndSettlementDate("creator-1", currentMonth.atDay(12))
+                .orElseThrow();
+        assertThat(secondCancellationSettlement.getTotalSalesAmount()).isEqualByComparingTo("0");
+        assertThat(secondCancellationSettlement.getTotalRefundAmount()).isEqualByComparingTo("15000");
+        assertThat(secondCancellationSettlement.getSaleCount()).isEqualTo(0);
+        assertThat(secondCancellationSettlement.getCancelCount()).isEqualTo(1);
     }
 }

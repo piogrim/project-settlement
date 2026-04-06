@@ -39,7 +39,7 @@ import lombok.NoArgsConstructor;
         }
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class Settlement {
+public class MonthlySettlement {
 
     @Id
     @Column(name = "settlement_id", nullable = false, updatable = false, length = 50)
@@ -88,7 +88,7 @@ public class Settlement {
     private OffsetDateTime paidAt;
 
     @Builder
-    private Settlement(
+    private MonthlySettlement(
             String id,
             Creator creator,
             YearMonth settlementMonth,

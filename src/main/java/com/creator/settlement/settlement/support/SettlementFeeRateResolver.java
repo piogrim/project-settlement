@@ -13,7 +13,7 @@ public class SettlementFeeRateResolver {
     private final SettlementFeeRateRepository settlementFeeRateRepository;
 
     public BigDecimal resolve(YearMonth settlementMonth) {
-        return settlementFeeRateRepository.findFirstByEffectiveFromLessThanEqualOrderByEffectiveFromDesc(settlementMonth)
+        return settlementFeeRateRepository.findLatestApplicableRate(settlementMonth)
                 .map(settlementFeeRate -> settlementFeeRate.getFeeRate())
                 .orElse(SettlementPolicy.DEFAULT_FEE_RATE);
     }

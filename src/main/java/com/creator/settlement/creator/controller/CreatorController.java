@@ -20,8 +20,8 @@ public class CreatorController {
     private final CreatorCommandService creatorCommandService;
 
     @PostMapping("/creators")
-    public ResponseEntity<CreatorResult> registerCreator(@Valid @RequestBody CreateCreatorRequest request) {
-        CreatorResult result = creatorCommandService.registerCreator(request.toCommand());
+    public ResponseEntity<CreatorResult> createCreator(@Valid @RequestBody CreateCreatorRequest request) {
+        CreatorResult result = creatorCommandService.createCreator(request.toCommand());
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 }
