@@ -32,6 +32,10 @@
 ./gradlew bootRun
 ```
 
+```powershell
+gradlew.bat bootRun
+```
+
 2. 실행 특징
 - 별도 DB 준비 없이 H2 메모리 DB로 바로 실행됩니다.
 - 애플리케이션은 빈 DB 상태로 시작합니다.
@@ -60,8 +64,12 @@ docker compose up -d
 ./gradlew bootRun --args='--spring.profiles.active=mysql'
 ```
 
+```powershell
+gradlew.bat bootRun --args="--spring.profiles.active=mysql"
+```
+
 3. 참고 사항
-- MySQL 실행 설정은 [docker-compose.yml](/Users/seongbb/Desktop/라이브클래스/settlement/docker-compose.yml), [application-mysql.yaml](/Users/seongbb/Desktop/라이브클래스/settlement/src/main/resources/application-mysql.yaml)에 분리되어 있습니다.
+- MySQL 실행 설정은 [docker-compose.yml](./docker-compose.yml), [application-mysql.yaml](./src/main/resources/application-mysql.yaml)에 분리되어 있습니다.
 - 기본 실행은 H2, 선택 실행은 MySQL(Docker Compose) 방식으로 구성했습니다.
 - 로컬 Docker 환경에 따라 MySQL 이미지 초기화 제약이 있을 수 있어, 제출/기본 실행은 H2 기준으로도 바로 가능하도록 유지했습니다.
 
@@ -92,8 +100,34 @@ http://localhost:8080
 - 수수료율 이력은 현재 월과 미래 월에 대해서만 생성/수정할 수 있고, 과거 월 값은 소급 변경할 수 없습니다.
 
 ## API 목록 및 예시
+### 공통 사항
+- Base URL: `http://localhost:8080`
+- 생성 API는 `201 Created`, 조회/상태 변경 API는 `200 OK`를 사용합니다.
+- 기본 응답 타입은 `application/json`이며, CSV 다운로드만 `text/csv;charset=UTF-8`를 반환합니다.
+- 에러 응답은 다음 형식을 사용합니다.
+
+```json
+{
+  "status": 409,
+  "error": "충돌",
+  "message": "마감된 월의 판매 내역은 등록할 수 없습니다.",
+  "timestamp": "2026-04-06T15:10:00+09:00"
+}
+```
+
 ### 1. 크리에이터 등록
 `POST /api/creators`
+
+요청:
+
+```json
+{
+  "creatorId": "creator-1",
+  "name": "김강사"
+}
+```
+
+응답:
 
 ```json
 {
@@ -104,6 +138,18 @@ http://localhost:8080
 
 ### 2. 강의 등록
 `POST /api/courses`
+
+요청:
+
+```json
+{
+  "courseId": "course-1",
+  "creatorId": "creator-1",
+  "title": "Spring Boot 입문"
+}
+```
+
+응답:
 
 ```json
 {
@@ -116,70 +162,355 @@ http://localhost:8080
 ### 3. 판매 등록
 `POST /api/sales`
 
+요청:
+
 ```json
 {
   "saleId": "sale-api-1",
   "courseId": "course-1",
   "studentId": "student-1",
   "amount": 50000,
-  "paidAt": "<현재-또는-미래-월>-10T15:00:00+09:00"
+  "paidAt": "2026-04-10T15:00:00+09:00"
+}
+```
+
+응답:
+
+```json
+{
+  "saleId": "sale-api-1",
+  "courseId": "course-1",
+  "courseTitle": "Spring Boot 입문",
+  "creatorId": "creator-1",
+  "creatorName": "김강사",
+  "studentId": "student-1",
+  "amount": 50000,
+  "paidAt": "2026-04-10T15:00:00+09:00",
+  "refundedAmount": 0,
+  "cancellationCount": 0
 }
 ```
 
 ### 4. 취소 등록
 `POST /api/sales/{saleId}/cancellations`
 
+요청:
+
 ```json
 {
   "cancellationId": "cancel-api-1",
   "refundAmount": 10000,
-  "canceledAt": "<현재-또는-미래-월>-11T18:00:00+09:00"
+  "canceledAt": "2026-04-11T18:00:00+09:00"
+}
+```
+
+응답:
+
+```json
+{
+  "cancellationId": "cancel-api-1",
+  "saleId": "sale-api-1",
+  "refundAmount": 10000,
+  "canceledAt": "2026-04-11T18:00:00+09:00",
+  "totalRefundedAmount": 10000
 }
 ```
 
 ### 5. 판매 내역 조회
 `GET /api/creators/{creatorId}/sales?startDate=2025-03-01&endDate=2025-03-31`
 
+응답:
+
+```json
+[
+  {
+    "saleId": "sale-4",
+    "courseId": "course-2",
+    "courseTitle": "JPA 실전",
+    "creatorId": "creator-1",
+    "creatorName": "김강사",
+    "studentId": "student-4",
+    "amount": 80000,
+    "paidAt": "2025-03-22T11:00:00+09:00",
+    "refundedAmount": 30000,
+    "cancellationCount": 1
+  }
+]
+```
+
 ### 6. 월별 정산 조회
 `GET /api/creators/{creatorId}/settlements/monthly?yearMonth=2025-03`
+
+응답:
+
+```json
+{
+  "creatorId": "creator-1",
+  "creatorName": "김강사",
+  "settlementMonth": "2025-03",
+  "totalSalesAmount": 260000,
+  "totalRefundAmount": 110000,
+  "netSalesAmount": 150000,
+  "platformFeeAmount": 30000,
+  "settlementAmount": 120000,
+  "saleCount": 4,
+  "cancelCount": 2
+}
+```
 
 ### 7. 운영자용 기간 집계 조회
 `GET /api/admin/settlements?startDate=2025-03-01&endDate=2025-03-31`
 
-### 8. 정산 생성
-`POST /api/creators/{creatorId}/settlements`
+응답:
 
 ```json
 {
-  "settlementId": "settlement-creator-1-prev-month",
-  "settlementMonth": "<이전-월>"
+  "startDate": "2025-03-01",
+  "endDate": "2025-03-31",
+  "items": [
+    {
+      "creatorId": "creator-1",
+      "creatorName": "김강사",
+      "totalSalesAmount": 260000,
+      "totalRefundAmount": 110000,
+      "netSalesAmount": 150000,
+      "platformFeeAmount": 30000,
+      "settlementAmount": 120000,
+      "saleCount": 4,
+      "cancelCount": 2
+    },
+    {
+      "creatorId": "creator-2",
+      "creatorName": "이강사",
+      "totalSalesAmount": 60000,
+      "totalRefundAmount": 0,
+      "netSalesAmount": 60000,
+      "platformFeeAmount": 12000,
+      "settlementAmount": 48000,
+      "saleCount": 1,
+      "cancelCount": 0
+    },
+    {
+      "creatorId": "creator-3",
+      "creatorName": "박강사",
+      "totalSalesAmount": 0,
+      "totalRefundAmount": 0,
+      "netSalesAmount": 0,
+      "platformFeeAmount": 0,
+      "settlementAmount": 0,
+      "saleCount": 0,
+      "cancelCount": 0
+    }
+  ],
+  "totalSettlementAmount": 168000
+}
+```
+
+### 8. 정산 생성
+`POST /api/creators/{creatorId}/settlements`
+
+요청:
+
+```json
+{
+  "settlementId": "settlement-creator-1-2025-03",
+  "settlementMonth": "2025-03"
+}
+```
+
+응답:
+
+```json
+{
+  "settlementId": "settlement-creator-1-2025-03",
+  "creatorId": "creator-1",
+  "creatorName": "김강사",
+  "settlementMonth": "2025-03",
+  "totalSalesAmount": 260000,
+  "totalRefundAmount": 110000,
+  "netSalesAmount": 150000,
+  "platformFeeAmount": 30000,
+  "settlementAmount": 120000,
+  "feeRate": 0.2000,
+  "saleCount": 4,
+  "cancelCount": 2,
+  "status": "PENDING"
 }
 ```
 
 ### 9. 정산 확정
 `POST /api/admin/settlements/{settlementId}/confirm`
 
+응답 예시:
+
+```json
+{
+  "settlementId": "settlement-creator-1-2025-03",
+  "status": "CONFIRMED",
+  "confirmedAt": "2026-04-06T15:20:00+09:00"
+}
+```
+
 ### 10. 정산 지급 완료
 `POST /api/admin/settlements/{settlementId}/pay`
+
+응답 예시:
+
+```json
+{
+  "settlementId": "settlement-creator-1-2025-03",
+  "status": "PAID",
+  "confirmedAt": "2026-04-06T15:20:00+09:00",
+  "paidAt": "2026-04-06T15:25:00+09:00"
+}
+```
 
 ### 11. 운영자용 정산 집계 CSV 다운로드
 `GET /api/admin/settlements/export/csv?startDate=2025-03-01&endDate=2025-03-31`
 
+응답 헤더:
+
+```text
+Content-Disposition: attachment; filename="settlement-summary-2025-03-01-to-2025-03-31.csv"
+Content-Type: text/csv;charset=UTF-8
+```
+
+응답 본문 예시:
+
+```csv
+정산 시작일,정산 종료일,크리에이터 ID,크리에이터명,총 판매 금액,총 환불 금액,순 판매 금액,플랫폼 수수료,정산 예정 금액,판매 건수,취소 건수
+2025-03-01,2025-03-31,creator-1,김강사,260000,110000,150000,30000,120000,4,2
+2025-03-01,2025-03-31,creator-2,이강사,60000,0,60000,12000,48000,1,0
+2025-03-01,2025-03-31,creator-3,박강사,0,0,0,0,0,0,0
+2025-03-01,2025-03-31,TOTAL,전체 합계,320000,110000,210000,42000,168000,5,2
+```
+
+### 12. 수수료율 이력 등록
+`POST /api/admin/settlement-fee-rates`
+
+요청:
+
+```json
+{
+  "settlementFeeRateId": "fee-rate-2026-05",
+  "effectiveFrom": "2026-05",
+  "feeRate": 0.1500
+}
+```
+
+응답:
+
+```json
+{
+  "settlementFeeRateId": "fee-rate-2026-05",
+  "effectiveFrom": "2026-05",
+  "feeRate": 0.1500,
+  "createdAt": "2026-04-06T15:30:00+09:00"
+}
+```
+
+### 13. 수수료율 이력 조회
+`GET /api/admin/settlement-fee-rates`
+
+응답:
+
+```json
+[
+  {
+    "settlementFeeRateId": "fee-rate-2026-06",
+    "effectiveFrom": "2026-06",
+    "feeRate": 0.1000,
+    "createdAt": "2026-04-06T15:31:00+09:00"
+  },
+  {
+    "settlementFeeRateId": "fee-rate-2026-05",
+    "effectiveFrom": "2026-05",
+    "feeRate": 0.1500,
+    "createdAt": "2026-04-06T15:30:00+09:00"
+  }
+]
+```
+
+### 14. 수수료율 이력 수정
+`PUT /api/admin/settlement-fee-rates/{settlementFeeRateId}`
+
+요청:
+
+```json
+{
+  "feeRate": 0.1200
+}
+```
+
+응답:
+
+```json
+{
+  "settlementFeeRateId": "fee-rate-2026-05",
+  "effectiveFrom": "2026-05",
+  "feeRate": 0.1200,
+  "createdAt": "2026-04-06T15:30:00+09:00"
+}
+```
+
 ## 데이터 모델 설명
-- `Creator`
-  - 크리에이터 정보
-- `Course`
-  - 강의 정보
-  - 하나의 크리에이터에 속함
-- `SaleRecord`
-  - 판매 내역
-  - 강의, 수강생 ID, 결제 금액, 결제 시각을 가짐
-- `SaleCancellation`
-  - 취소/환불 내역
-  - 원본 판매 내역을 참조하고 환불 금액, 취소 시각을 가짐
-- `Settlement`
-  - 월별 정산 스냅샷
-  - 크리에이터, 정산 연월, 정산 금액, 수수료율, 판매/취소 건수와 정산 상태를 가짐
+- 스키마는 JPA/Hibernate로 자동 생성됩니다.
+- H2 실행 시 `ddl-auto: create-drop`, MySQL 실행 시 `ddl-auto: create` 설정을 사용합니다.
+
+### 엔티티별 설명
+- `Creator` (`creators`)
+  - PK: `creator_id`
+  - 컬럼: `name`
+  - 크리에이터 정보입니다.
+- `Course` (`courses`)
+  - PK: `course_id`
+  - FK: `creator_id -> creators.creator_id`
+  - 컬럼: `title`
+  - 한 크리에이터가 여러 강의를 가질 수 있습니다.
+- `SaleRecord` (`sale_records`)
+  - PK: `sale_id`
+  - FK: `course_id -> courses.course_id`
+  - 컬럼: `student_id`, `amount`, `paid_at`, `total_refund_amount`
+  - 인덱스: `paid_at`
+  - 판매 원천 데이터이며 누적 환불 금액을 함께 관리합니다.
+- `SaleCancellation` (`sale_cancellations`)
+  - PK: `cancel_id`
+  - FK: `sale_id -> sale_records.sale_id`
+  - 컬럼: `refund_amount`, `canceled_at`
+  - 인덱스: `canceled_at`
+  - 한 판매 건에 대해 여러 부분 취소를 기록할 수 있습니다.
+- `Settlement` (`settlements`)
+  - PK: `settlement_id`
+  - FK: `creator_id -> creators.creator_id`
+  - 유니크 제약: `(creator_id, settlement_month)`
+  - 컬럼: `settlement_month`, `total_sales_amount`, `total_refund_amount`, `net_sales_amount`, `platform_fee_amount`, `settlement_amount`, `fee_rate`, `sale_count`, `cancel_count`, `status`, `confirmed_at`, `paid_at`
+  - 인덱스: `settlement_month`, `status`
+  - 이전 월 정산 스냅샷과 상태 전이 정보를 저장합니다.
+- `SettlementFeeRate` (`settlement_fee_rates`)
+  - PK: `settlement_fee_rate_id`
+  - 유니크 제약: `effective_from`
+  - 컬럼: `effective_from`, `fee_rate`, `created_at`
+  - 인덱스: `effective_from`
+  - 특정 연월부터 적용할 플랫폼 수수료율 이력을 관리합니다.
+
+### 관계 요약
+- `Creator 1 : N Course`
+- `Course 1 : N SaleRecord`
+- `SaleRecord 1 : N SaleCancellation`
+- `Creator 1 : N Settlement`
+- `SettlementFeeRate`는 독립 테이블이며, 조회 시 `effective_from` 기준으로 정산 계산에 적용됩니다.
+
+### ERD 관점 요약
+
+```text
+Creator (creator_id)
+  ├─< Course (course_id, creator_id)
+  │    └─< SaleRecord (sale_id, course_id)
+  │          └─< SaleCancellation (cancel_id, sale_id)
+  └─< Settlement (settlement_id, creator_id, settlement_month) [unique: creator_id + settlement_month]
+
+SettlementFeeRate (settlement_fee_rate_id, effective_from) [unique: effective_from]
+```
 
 ## 요구사항 해석 및 가정
 - 판매는 `paidAt` 기준으로 집계합니다.
@@ -220,10 +551,18 @@ http://localhost:8080
 ./gradlew test
 ```
 
+```powershell
+gradlew.bat test
+```
+
 컴파일 확인:
 
 ```bash
 ./gradlew compileJava
+```
+
+```powershell
+gradlew.bat compileJava
 ```
 
 수동 검증:
