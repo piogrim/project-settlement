@@ -22,7 +22,7 @@ public class SettlementFeeRateCommandService {
     private final SettlementFeeRateRepository settlementFeeRateRepository;
     private final KstClock kstClock;
 
-    public SettlementFeeRateHistoryResult registerSettlementFeeRate(CreateSettlementFeeRateCommand command) {
+    public SettlementFeeRateHistoryResult createSettlementFeeRate(CreateSettlementFeeRateCommand command) {
         validateCreatableEffectiveFrom(command.effectiveFrom());
 
         if (settlementFeeRateRepository.existsByEffectiveFrom(command.effectiveFrom())) {

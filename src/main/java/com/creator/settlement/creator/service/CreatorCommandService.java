@@ -16,7 +16,7 @@ public class CreatorCommandService {
 
     private final CreatorRepository creatorRepository;
 
-    public CreatorResult registerCreator(RegisterCreatorCommand command) {
+    public CreatorResult createCreator(RegisterCreatorCommand command) {
         if (creatorRepository.existsById(command.creatorId())) {
             throw new BusinessRuleViolationException("이미 존재하는 크리에이터 ID입니다: " + command.creatorId());
         }

@@ -30,10 +30,10 @@ public class AdminSettlementFeeRateController {
     private final SettlementFeeRateQueryService settlementFeeRateQueryService;
 
     @PostMapping
-    public ResponseEntity<SettlementFeeRateHistoryResult> registerSettlementFeeRate(
+    public ResponseEntity<SettlementFeeRateHistoryResult> createSettlementFeeRate(
             @Valid @RequestBody CreateSettlementFeeRateRequest request
     ) {
-        SettlementFeeRateHistoryResult result = settlementFeeRateCommandService.registerSettlementFeeRate(
+        SettlementFeeRateHistoryResult result = settlementFeeRateCommandService.createSettlementFeeRate(
                 request.toCommand(parseYearMonth(request.effectiveFrom()))
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(result);

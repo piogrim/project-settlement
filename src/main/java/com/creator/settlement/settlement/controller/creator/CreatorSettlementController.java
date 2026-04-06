@@ -4,7 +4,7 @@ import com.creator.settlement.common.exception.InvalidRequestException;
 import com.creator.settlement.settlement.dto.request.CreateMonthlySettlementRequest;
 import com.creator.settlement.settlement.dto.response.CreatorMonthlySettlementDetailResult;
 import com.creator.settlement.settlement.dto.response.MonthlySettlementSnapshotResult;
-import com.creator.settlement.settlement.service.CreatorMonthlySettlementQueryService;
+import com.creator.settlement.settlement.service.MonthlySettlementQueryService;
 import com.creator.settlement.settlement.service.MonthlySettlementCommandService;
 import jakarta.validation.Valid;
 import java.time.YearMonth;
@@ -25,15 +25,15 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/creators/{creatorId}/settlements")
 public class CreatorSettlementController {
 
-    private final CreatorMonthlySettlementQueryService creatorMonthlySettlementQueryService;
+    private final MonthlySettlementQueryService monthlySettlementQueryService;
     private final MonthlySettlementCommandService monthlySettlementCommandService;
 
     @PostMapping
-    public ResponseEntity<MonthlySettlementSnapshotResult> registerSettlement(
+    public ResponseEntity<MonthlySettlementSnapshotResult> createSettlement(
             @PathVariable String creatorId,
             @Valid @RequestBody CreateMonthlySettlementRequest request
     ) {
-        MonthlySettlementSnapshotResult result = monthlySettlementCommandService.registerSettlement(
+        MonthlySettlementSnapshotResult result = monthlySettlementCommandService.createSettlement(
                 request.toCommand(creatorId, parseYearMonth(request.settlementMonth()))
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
@@ -44,7 +44,7 @@ public class CreatorSettlementController {
             @PathVariable String creatorId,
             @RequestParam("yearMonth") String yearMonth
     ) {
-        return creatorMonthlySettlementQueryService.getCreatorMonthlySettlement(creatorId, parseYearMonth(yearMonth));
+        return monthlySettlementQueryService.getCreatorMonthlySettlement(creatorId, parseYearMonth(yearMonth));
     }
 
     private YearMonth parseYearMonth(String yearMonth) {

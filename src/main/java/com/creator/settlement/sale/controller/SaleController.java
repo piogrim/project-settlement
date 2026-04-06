@@ -31,17 +31,17 @@ public class SaleController {
     private final SaleQueryService saleQueryService;
 
     @PostMapping("/sales")
-    public ResponseEntity<SaleRecordResult> registerSale(@Valid @RequestBody CreateSaleRequest request) {
-        SaleRecordResult result = saleCommandService.registerSale(request.toCommand());
+    public ResponseEntity<SaleRecordResult> createSale(@Valid @RequestBody CreateSaleRequest request) {
+        SaleRecordResult result = saleCommandService.createSale(request.toCommand());
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 
     @PostMapping("/sales/{saleId}/cancellations")
-    public ResponseEntity<SaleCancellationResult> registerCancellation(
+    public ResponseEntity<SaleCancellationResult> createSaleCancellation(
             @PathVariable String saleId,
             @Valid @RequestBody CreateSaleCancellationRequest request
     ) {
-        SaleCancellationResult result = saleCommandService.registerCancellation(request.toCommand(saleId));
+        SaleCancellationResult result = saleCommandService.createSaleCancellation(request.toCommand(saleId));
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 

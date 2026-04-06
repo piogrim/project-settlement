@@ -3,16 +3,13 @@ package com.creator.settlement.settlement.service;
 import com.creator.settlement.common.exception.BusinessRuleViolationException;
 import com.creator.settlement.common.exception.ResourceNotFoundException;
 import com.creator.settlement.common.time.KstClock;
-import com.creator.settlement.common.time.KstPeriodResolver;
 import com.creator.settlement.creator.domain.Creator;
 import com.creator.settlement.creator.repository.CreatorRepository;
-import com.creator.settlement.sale.domain.SaleCancellation;
-import com.creator.settlement.sale.domain.SaleRecord;
-import com.creator.settlement.sale.repository.SaleCancellationRepository;
-import com.creator.settlement.sale.repository.SaleRecordRepository;
+import com.creator.settlement.settlement.domain.DailySettlement;
 import com.creator.settlement.settlement.domain.MonthlySettlement;
 import com.creator.settlement.settlement.dto.command.CreateMonthlySettlementCommand;
 import com.creator.settlement.settlement.dto.response.MonthlySettlementSnapshotResult;
+import com.creator.settlement.settlement.repository.DailySettlementRepository;
 import com.creator.settlement.settlement.repository.MonthlySettlementRepository;
 import com.creator.settlement.settlement.support.SettlementCalculator;
 import com.creator.settlement.settlement.support.SettlementFeeRateResolver;
@@ -33,15 +30,13 @@ import org.springframework.validation.annotation.Validated;
 public class MonthlySettlementCommandService {
 
     private final CreatorRepository creatorRepository;
-    private final SaleRecordRepository saleRecordRepository;
-    private final SaleCancellationRepository saleCancellationRepository;
+    private final DailySettlementRepository dailySettlementRepository;
     private final MonthlySettlementRepository monthlySettlementRepository;
     private final SettlementCalculator settlementCalculator;
     private final SettlementFeeRateResolver settlementFeeRateResolver;
-    private final KstPeriodResolver kstPeriodResolver;
     private final KstClock kstClock;
 
-    public MonthlySettlementSnapshotResult registerSettlement(CreateMonthlySettlementCommand command) {
+    public MonthlySettlementSnapshotResult createSettlement(CreateMonthlySettlementCommand command) {
         Creator creator = creatorRepository.findById(command.creatorId())
                 .orElseThrow(() -> new ResourceNotFoundException("크리에이터를 찾을 수 없습니다: " + command.creatorId()));
 
@@ -58,23 +53,14 @@ public class MonthlySettlementCommandService {
             throw new BusinessRuleViolationException("이미 존재하는 정산 ID입니다: " + settlementId);
         }
 
-        KstPeriodResolver.KstRange monthlyRange = kstPeriodResolver.monthlyRange(command.settlementMonth());
-        List<SaleRecord> saleRecords = saleRecordRepository
-                .findAllForCreatorInPaidAtRange(
+        List<DailySettlement> dailySettlements = dailySettlementRepository
+                .findAllForCreatorInSettlementDateRange(
                         creator.getId(),
-                        monthlyRange.startAt(),
-                        monthlyRange.endExclusive()
+                        command.settlementMonth().atDay(1),
+                        command.settlementMonth().atEndOfMonth()
                 );
-        List<SaleCancellation> saleCancellations = saleCancellationRepository
-                .findAllForCreatorInCanceledAtRange(
-                        creator.getId(),
-                        monthlyRange.startAt(),
-                        monthlyRange.endExclusive()
-                );
-
         BigDecimal feeRate = settlementFeeRateResolver.resolve(command.settlementMonth());
-        SettlementCalculator.SettlementAmounts amounts =
-                settlementCalculator.calculate(saleRecords, saleCancellations, feeRate);
+        SettlementCalculator.SettlementAmounts amounts = settlementCalculator.calculate(dailySettlements, feeRate);
 
         MonthlySettlement monthlySettlement = monthlySettlementRepository.save(MonthlySettlement.builder()
                 .id(settlementId)

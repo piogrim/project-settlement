@@ -7,11 +7,11 @@ import com.creator.settlement.course.domain.Course;
 import com.creator.settlement.course.repository.CourseRepository;
 import com.creator.settlement.sale.domain.SaleCancellation;
 import com.creator.settlement.sale.domain.SaleRecord;
-import com.creator.settlement.sale.dto.RegisterSaleCancellationCommand;
-import com.creator.settlement.sale.dto.RegisterSaleCommand;
+import com.creator.settlement.sale.dto.CreateSaleCancellationCommand;
+import com.creator.settlement.sale.dto.CreateSaleCommand;
 import com.creator.settlement.sale.dto.SaleCancellationResult;
 import com.creator.settlement.sale.dto.SaleRecordResult;
-import com.creator.settlement.settlement.service.DailySettlementAggregateService;
+import com.creator.settlement.settlement.service.DailySettlementCommandService;
 import com.creator.settlement.sale.repository.SaleRecordRepository;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -30,11 +30,12 @@ public class SaleCommandService {
 
     private final CourseRepository courseRepository;
     private final SaleRecordRepository saleRecordRepository;
-    private final DailySettlementAggregateService dailySettlementAggregateService;
+    private final DailySettlementCommandService dailySettlementCommandService;
     private final KstClock kstClock;
 
-    public SaleRecordResult registerSale(RegisterSaleCommand command) {
-        validateWritableMonth(command.paidAt(), "마감된 월의 판매 내역은 등록할 수 없습니다.");
+    public SaleRecordResult createSale(CreateSaleCommand command) {
+        YearMonth currentMonth = kstClock.currentYearMonth();
+        validateWritableMonth(command.paidAt(), currentMonth, "마감된 월의 판매 내역은 등록할 수 없습니다.");
 
         Course course = courseRepository.findById(command.courseId())
                 .orElseThrow(() -> new ResourceNotFoundException("강의를 찾을 수 없습니다: " + command.courseId()));
@@ -48,7 +49,7 @@ public class SaleCommandService {
                 .build();
 
         SaleRecord savedSaleRecord = saleRecordRepository.save(saleRecord);
-        dailySettlementAggregateService.addSale(
+        dailySettlementCommandService.addSale(
                 course.getCreator().getId(),
                 savedSaleRecord.getPaidAt(),
                 savedSaleRecord.getAmount()
@@ -57,8 +58,9 @@ public class SaleCommandService {
         return SaleRecordResult.from(savedSaleRecord);
     }
 
-    public SaleCancellationResult registerCancellation(RegisterSaleCancellationCommand command) {
-        validateWritableMonth(command.canceledAt(), "마감된 월의 취소 내역은 등록할 수 없습니다.");
+    public SaleCancellationResult createSaleCancellation(CreateSaleCancellationCommand command) {
+        YearMonth currentMonth = kstClock.currentYearMonth();
+        validateWritableMonth(command.canceledAt(), currentMonth, "마감된 월의 취소 내역은 등록할 수 없습니다.");
 
         SaleRecord saleRecord = saleRecordRepository.findByIdForUpdate(command.saleId())
                 .orElseThrow(() -> new ResourceNotFoundException("판매 내역을 찾을 수 없습니다: " + command.saleId()));
@@ -76,7 +78,7 @@ public class SaleCommandService {
 
         saleRecord.addCancellation(cancellation);
         saleRecordRepository.save(saleRecord);
-        dailySettlementAggregateService.addCancellation(
+        dailySettlementCommandService.addCancellation(
                 saleRecord.getCourse().getCreator().getId(),
                 cancellation.getCanceledAt(),
                 cancellation.getRefundAmount()
@@ -89,9 +91,9 @@ public class SaleCommandService {
         return candidate == null || candidate.isBlank() ? prefix + "-" + UUID.randomUUID() : candidate;
     }
 
-    private void validateWritableMonth(OffsetDateTime occurredAt, String message) {
+    private void validateWritableMonth(OffsetDateTime occurredAt, YearMonth currentMonth, String message) {
         YearMonth occurredMonth = YearMonth.from(occurredAt.atZoneSameInstant(kstClock.zoneId()));
-        if (occurredMonth.isBefore(kstClock.currentYearMonth())) {
+        if (occurredMonth.isBefore(currentMonth)) {
             throw new BusinessRuleViolationException(message);
         }
     }

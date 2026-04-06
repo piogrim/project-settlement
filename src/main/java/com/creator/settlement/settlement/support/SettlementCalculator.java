@@ -1,7 +1,6 @@
 package com.creator.settlement.settlement.support;
 
-import com.creator.settlement.sale.domain.SaleCancellation;
-import com.creator.settlement.sale.domain.SaleRecord;
+import com.creator.settlement.settlement.domain.DailySettlement;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
@@ -10,20 +9,26 @@ import org.springframework.stereotype.Component;
 @Component
 public class SettlementCalculator {
 
-    public SettlementAmounts calculate(
-            List<SaleRecord> saleRecords,
-            List<SaleCancellation> saleCancellations,
-            BigDecimal feeRate
-    ) {
-        BigDecimal totalSalesAmount = saleRecords.stream()
-                .map(SaleRecord::getAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+    public SettlementAmounts calculate(List<DailySettlement> dailySettlements, BigDecimal feeRate) {
+        BigDecimal totalSalesAmount = BigDecimal.ZERO;
+        BigDecimal totalRefundAmount = BigDecimal.ZERO;
+        long saleCount = 0L;
+        long cancelCount = 0L;
 
-        BigDecimal totalRefundAmount = saleCancellations.stream()
-                .map(SaleCancellation::getRefundAmount)
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        for (DailySettlement dailySettlement : dailySettlements) {
+            totalSalesAmount = totalSalesAmount.add(dailySettlement.getTotalSalesAmount());
+            totalRefundAmount = totalRefundAmount.add(dailySettlement.getTotalRefundAmount());
+            saleCount += dailySettlement.getSaleCount();
+            cancelCount += dailySettlement.getCancelCount();
+        }
 
-        return calculate(totalSalesAmount, totalRefundAmount, saleRecords.size(), saleCancellations.size(), feeRate);
+        return calculate(
+                totalSalesAmount,
+                totalRefundAmount,
+                saleCount,
+                cancelCount,
+                feeRate
+        );
     }
 
     public SettlementAmounts calculate(

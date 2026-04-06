@@ -16,7 +16,7 @@ public record CreateSaleRequest(
         @NotNull(message = "결제 일시는 필수입니다.") OffsetDateTime paidAt
 ) {
 
-    public RegisterSaleCommand toCommand() {
-        return new RegisterSaleCommand(saleId, courseId, studentId, amount, paidAt);
+    public CreateSaleCommand toCommand() {
+        return new CreateSaleCommand(saleId, courseId, studentId, amount, paidAt);
     }
 }

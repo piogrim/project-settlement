@@ -19,34 +19,34 @@ import lombok.NoArgsConstructor;
 @Getter
 @Entity
 @Table(
-        name = "creator_daily_settlement_aggregates",
+        name = "creator_daily_settlements",
         uniqueConstraints = {
                 @UniqueConstraint(
-                        name = "uk_creator_daily_settlement_aggregate",
-                        columnNames = {"creator_id", "aggregate_date"}
+                        name = "uk_creator_daily_settlement",
+                        columnNames = {"creator_id", "settlement_date"}
                 )
         },
         indexes = {
-                @Index(name = "idx_creator_daily_settlement_aggregate_date", columnList = "aggregate_date"),
+                @Index(name = "idx_creator_daily_settlement_date", columnList = "settlement_date"),
                 @Index(
-                        name = "idx_creator_daily_settlement_aggregate_creator_date",
-                        columnList = "creator_id, aggregate_date"
+                        name = "idx_creator_daily_settlement_creator_date",
+                        columnList = "creator_id, settlement_date"
                 )
         }
 )
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class DailySettlementAggregate {
+public class DailySettlement {
 
     @Id
-    @Column(name = "aggregate_id", nullable = false, updatable = false, length = 100)
+    @Column(name = "daily_settlement_id", nullable = false, updatable = false, length = 100)
     private String id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "creator_id", nullable = false)
     private Creator creator;
 
-    @Column(name = "aggregate_date", nullable = false)
-    private LocalDate aggregateDate;
+    @Column(name = "settlement_date", nullable = false)
+    private LocalDate settlementDate;
 
     @Column(name = "total_sales_amount", nullable = false, precision = 15, scale = 0)
     private BigDecimal totalSalesAmount;
@@ -60,18 +60,18 @@ public class DailySettlementAggregate {
     @Column(name = "cancel_count", nullable = false)
     private long cancelCount;
 
-    private DailySettlementAggregate(Creator creator, LocalDate aggregateDate) {
-        this.id = generateId(creator.getId(), aggregateDate);
+    private DailySettlement(Creator creator, LocalDate settlementDate) {
+        this.id = generateId(creator.getId(), settlementDate);
         this.creator = creator;
-        this.aggregateDate = aggregateDate;
+        this.settlementDate = settlementDate;
         this.totalSalesAmount = BigDecimal.ZERO;
         this.totalRefundAmount = BigDecimal.ZERO;
         this.saleCount = 0;
         this.cancelCount = 0;
     }
 
-    public static DailySettlementAggregate create(Creator creator, LocalDate aggregateDate) {
-        return new DailySettlementAggregate(creator, aggregateDate);
+    public static DailySettlement create(Creator creator, LocalDate settlementDate) {
+        return new DailySettlement(creator, settlementDate);
     }
 
     public void addSale(BigDecimal amount) {
@@ -84,7 +84,7 @@ public class DailySettlementAggregate {
         this.cancelCount++;
     }
 
-    private static String generateId(String creatorId, LocalDate aggregateDate) {
-        return creatorId + ":" + aggregateDate;
+    private static String generateId(String creatorId, LocalDate settlementDate) {
+        return creatorId + ":" + settlementDate;
     }
 }

@@ -6,13 +6,13 @@ import java.time.YearMonth;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class AdminSettlementQueryAccumulator {
+public class DailySettlementQueryAccumulator {
 
     private final String creatorId;
     private final String creatorName;
-    private final Map<YearMonth, MonthlySettlementAccumulator> monthlyAccumulators = new LinkedHashMap<>();
+    private final Map<YearMonth, MonthlyTotalsAccumulator> monthlyAccumulators = new LinkedHashMap<>();
 
-    public AdminSettlementQueryAccumulator(String creatorId, String creatorName) {
+    public DailySettlementQueryAccumulator(String creatorId, String creatorName) {
         this.creatorId = creatorId;
         this.creatorName = creatorName;
     }
@@ -44,7 +44,7 @@ public class AdminSettlementQueryAccumulator {
         long saleCount = 0;
         long cancelCount = 0;
 
-        for (Map.Entry<YearMonth, MonthlySettlementAccumulator> entry : monthlyAccumulators.entrySet()) {
+        for (Map.Entry<YearMonth, MonthlyTotalsAccumulator> entry : monthlyAccumulators.entrySet()) {
             BigDecimal feeRate = settlementFeeRateResolver.resolve(entry.getKey());
             SettlementCalculator.SettlementAmounts amounts = settlementCalculator.calculate(
                     entry.getValue().totalSalesAmount,
@@ -75,11 +75,11 @@ public class AdminSettlementQueryAccumulator {
         );
     }
 
-    private MonthlySettlementAccumulator monthlyAccumulator(YearMonth settlementMonth) {
-        return monthlyAccumulators.computeIfAbsent(settlementMonth, ignored -> new MonthlySettlementAccumulator());
+    private MonthlyTotalsAccumulator monthlyAccumulator(YearMonth settlementMonth) {
+        return monthlyAccumulators.computeIfAbsent(settlementMonth, ignored -> new MonthlyTotalsAccumulator());
     }
 
-    private static final class MonthlySettlementAccumulator {
+    private static final class MonthlyTotalsAccumulator {
         private BigDecimal totalSalesAmount = BigDecimal.ZERO;
         private BigDecimal totalRefundAmount = BigDecimal.ZERO;
         private long saleCount;

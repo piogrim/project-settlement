@@ -20,7 +20,7 @@ public class CourseCommandService {
     private final CourseRepository courseRepository;
     private final CreatorRepository creatorRepository;
 
-    public CourseResult registerCourse(RegisterCourseCommand command) {
+    public CourseResult createCourse(RegisterCourseCommand command) {
         if (courseRepository.existsById(command.courseId())) {
             throw new BusinessRuleViolationException("이미 존재하는 강의 ID입니다: " + command.courseId());
         }

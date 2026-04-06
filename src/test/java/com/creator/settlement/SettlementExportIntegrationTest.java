@@ -34,7 +34,7 @@ class SettlementExportIntegrationTest extends ApiIntegrationTestSupport {
 
     @Test
     @DisplayName("운영자 CSV는 원천 판매 테이블을 비워도 사전 집계 데이터로 생성된다")
-    void shouldExportAdminSettlementSummaryFromPrecomputedAggregates() throws Exception {
+    void shouldExportAdminSettlementSummaryFromPrecomputedDailySettlements() throws Exception {
         saleCancellationRepository.deleteAllInBatch();
         saleRecordRepository.deleteAllInBatch();
 

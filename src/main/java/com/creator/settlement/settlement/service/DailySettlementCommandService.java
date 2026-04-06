@@ -4,12 +4,11 @@ import com.creator.settlement.common.exception.ResourceNotFoundException;
 import com.creator.settlement.common.time.KstClock;
 import com.creator.settlement.creator.domain.Creator;
 import com.creator.settlement.creator.repository.CreatorRepository;
-import com.creator.settlement.settlement.domain.DailySettlementAggregate;
-import com.creator.settlement.settlement.repository.DailySettlementAggregateRepository;
+import com.creator.settlement.settlement.domain.DailySettlement;
+import com.creator.settlement.settlement.repository.DailySettlementRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.util.function.Consumer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,35 +16,31 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 @Transactional
-public class DailySettlementAggregateService {
+public class DailySettlementCommandService {
 
     private final CreatorRepository creatorRepository;
-    private final DailySettlementAggregateRepository dailySettlementAggregateRepository;
+    private final DailySettlementRepository dailySettlementRepository;
     private final KstClock kstClock;
 
     public void addSale(String creatorId, OffsetDateTime paidAt, BigDecimal amount) {
-        adjustAggregate(creatorId, toKstDate(paidAt), aggregate -> aggregate.addSale(amount));
+        DailySettlement dailySettlement = getOrCreateDailySettlement(creatorId, toKstDate(paidAt));
+        dailySettlement.addSale(amount);
     }
 
     public void addCancellation(String creatorId, OffsetDateTime canceledAt, BigDecimal refundAmount) {
-        adjustAggregate(creatorId, toKstDate(canceledAt), aggregate -> aggregate.addCancellation(refundAmount));
+        DailySettlement dailySettlement = getOrCreateDailySettlement(creatorId, toKstDate(canceledAt));
+        dailySettlement.addCancellation(refundAmount);
     }
 
-    private void adjustAggregate(
-            String creatorId,
-            LocalDate aggregateDate,
-            Consumer<DailySettlementAggregate> mutator
-    ) {
+    private DailySettlement getOrCreateDailySettlement(String creatorId, LocalDate settlementDate) {
         Creator creator = creatorRepository.findByIdForUpdate(creatorId)
                 .orElseThrow(() -> new ResourceNotFoundException("크리에이터를 찾을 수 없습니다: " + creatorId));
 
-        DailySettlementAggregate aggregate = dailySettlementAggregateRepository
-                .findByCreatorIdAndAggregateDate(creatorId, aggregateDate)
-                .orElseGet(() -> dailySettlementAggregateRepository.save(
-                        DailySettlementAggregate.create(creator, aggregateDate)
+        return dailySettlementRepository
+                .findByCreatorIdAndSettlementDate(creatorId, settlementDate)
+                .orElseGet(() -> dailySettlementRepository.save(
+                        DailySettlement.create(creator, settlementDate)
                 ));
-
-        mutator.accept(aggregate);
     }
 
     private LocalDate toKstDate(OffsetDateTime occurredAt) {

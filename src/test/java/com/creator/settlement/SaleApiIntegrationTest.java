@@ -7,8 +7,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.creator.settlement.settlement.domain.DailySettlementAggregate;
-import com.creator.settlement.settlement.repository.DailySettlementAggregateRepository;
+import com.creator.settlement.settlement.domain.DailySettlement;
+import com.creator.settlement.settlement.repository.DailySettlementRepository;
 import java.time.YearMonth;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,7 +22,7 @@ import org.springframework.http.MediaType;
 class SaleApiIntegrationTest extends ApiIntegrationTestSupport {
 
     @Autowired
-    private DailySettlementAggregateRepository dailySettlementAggregateRepository;
+    private DailySettlementRepository dailySettlementRepository;
 
     @Test
     @DisplayName("이전 월 판매 등록은 409 에러를 반환한다")
@@ -199,28 +199,28 @@ class SaleApiIntegrationTest extends ApiIntegrationTestSupport {
                 .andExpect(jsonPath("$.saleCount").value(1))
                 .andExpect(jsonPath("$.cancelCount").value(2));
 
-        DailySettlementAggregate saleDayAggregate = dailySettlementAggregateRepository
-                .findByCreatorIdAndAggregateDate("creator-1", currentMonth.atDay(10))
+        DailySettlement saleDaySettlement = dailySettlementRepository
+                .findByCreatorIdAndSettlementDate("creator-1", currentMonth.atDay(10))
                 .orElseThrow();
-        assertThat(saleDayAggregate.getTotalSalesAmount()).isEqualByComparingTo("100000");
-        assertThat(saleDayAggregate.getTotalRefundAmount()).isEqualByComparingTo("0");
-        assertThat(saleDayAggregate.getSaleCount()).isEqualTo(1);
-        assertThat(saleDayAggregate.getCancelCount()).isEqualTo(0);
+        assertThat(saleDaySettlement.getTotalSalesAmount()).isEqualByComparingTo("100000");
+        assertThat(saleDaySettlement.getTotalRefundAmount()).isEqualByComparingTo("0");
+        assertThat(saleDaySettlement.getSaleCount()).isEqualTo(1);
+        assertThat(saleDaySettlement.getCancelCount()).isEqualTo(0);
 
-        DailySettlementAggregate firstCancellationAggregate = dailySettlementAggregateRepository
-                .findByCreatorIdAndAggregateDate("creator-1", currentMonth.atDay(11))
+        DailySettlement firstCancellationSettlement = dailySettlementRepository
+                .findByCreatorIdAndSettlementDate("creator-1", currentMonth.atDay(11))
                 .orElseThrow();
-        assertThat(firstCancellationAggregate.getTotalSalesAmount()).isEqualByComparingTo("0");
-        assertThat(firstCancellationAggregate.getTotalRefundAmount()).isEqualByComparingTo("10000");
-        assertThat(firstCancellationAggregate.getSaleCount()).isEqualTo(0);
-        assertThat(firstCancellationAggregate.getCancelCount()).isEqualTo(1);
+        assertThat(firstCancellationSettlement.getTotalSalesAmount()).isEqualByComparingTo("0");
+        assertThat(firstCancellationSettlement.getTotalRefundAmount()).isEqualByComparingTo("10000");
+        assertThat(firstCancellationSettlement.getSaleCount()).isEqualTo(0);
+        assertThat(firstCancellationSettlement.getCancelCount()).isEqualTo(1);
 
-        DailySettlementAggregate secondCancellationAggregate = dailySettlementAggregateRepository
-                .findByCreatorIdAndAggregateDate("creator-1", currentMonth.atDay(12))
+        DailySettlement secondCancellationSettlement = dailySettlementRepository
+                .findByCreatorIdAndSettlementDate("creator-1", currentMonth.atDay(12))
                 .orElseThrow();
-        assertThat(secondCancellationAggregate.getTotalSalesAmount()).isEqualByComparingTo("0");
-        assertThat(secondCancellationAggregate.getTotalRefundAmount()).isEqualByComparingTo("15000");
-        assertThat(secondCancellationAggregate.getSaleCount()).isEqualTo(0);
-        assertThat(secondCancellationAggregate.getCancelCount()).isEqualTo(1);
+        assertThat(secondCancellationSettlement.getTotalSalesAmount()).isEqualByComparingTo("0");
+        assertThat(secondCancellationSettlement.getTotalRefundAmount()).isEqualByComparingTo("15000");
+        assertThat(secondCancellationSettlement.getSaleCount()).isEqualTo(0);
+        assertThat(secondCancellationSettlement.getCancelCount()).isEqualTo(1);
     }
 }

@@ -20,8 +20,8 @@ public class CourseController {
     private final CourseCommandService courseCommandService;
 
     @PostMapping("/courses")
-    public ResponseEntity<CourseResult> registerCourse(@Valid @RequestBody CreateCourseRequest request) {
-        CourseResult result = courseCommandService.registerCourse(request.toCommand());
+    public ResponseEntity<CourseResult> createCourse(@Valid @RequestBody CreateCourseRequest request) {
+        CourseResult result = courseCommandService.createCourse(request.toCommand());
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 }

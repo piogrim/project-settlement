@@ -11,11 +11,11 @@ import com.creator.settlement.sale.domain.SaleCancellation;
 import com.creator.settlement.sale.domain.SaleRecord;
 import com.creator.settlement.sale.repository.SaleCancellationRepository;
 import com.creator.settlement.sale.repository.SaleRecordRepository;
-import com.creator.settlement.settlement.repository.DailySettlementAggregateRepository;
+import com.creator.settlement.settlement.repository.DailySettlementRepository;
 import com.creator.settlement.settlement.domain.SettlementFeeRate;
 import com.creator.settlement.settlement.repository.MonthlySettlementRepository;
 import com.creator.settlement.settlement.repository.SettlementFeeRateRepository;
-import com.creator.settlement.settlement.service.DailySettlementAggregateService;
+import com.creator.settlement.settlement.service.DailySettlementCommandService;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
@@ -51,10 +51,10 @@ abstract class ApiIntegrationTestSupport {
     private SettlementFeeRateRepository settlementFeeRateRepository;
 
     @Autowired
-    private DailySettlementAggregateRepository dailySettlementAggregateRepository;
+    private DailySettlementRepository dailySettlementRepository;
 
     @Autowired
-    private DailySettlementAggregateService dailySettlementAggregateService;
+    private DailySettlementCommandService dailySettlementCommandService;
 
     @BeforeEach
     void setUpRequiredScenario() {
@@ -65,7 +65,7 @@ abstract class ApiIntegrationTestSupport {
     private void clearDatabase() {
         monthlySettlementRepository.deleteAllInBatch();
         settlementFeeRateRepository.deleteAllInBatch();
-        dailySettlementAggregateRepository.deleteAllInBatch();
+        dailySettlementRepository.deleteAllInBatch();
         saleCancellationRepository.deleteAllInBatch();
         saleRecordRepository.deleteAllInBatch();
         courseRepository.deleteAllInBatch();
@@ -122,14 +122,14 @@ abstract class ApiIntegrationTestSupport {
 
     private void saveSaleRecord(SaleRecord saleRecord) {
         saleRecordRepository.save(saleRecord);
-        dailySettlementAggregateService.addSale(
+        dailySettlementCommandService.addSale(
                 saleRecord.getCourse().getCreator().getId(),
                 saleRecord.getPaidAt(),
                 saleRecord.getAmount()
         );
 
         for (SaleCancellation cancellation : saleRecord.getCancellations()) {
-            dailySettlementAggregateService.addCancellation(
+            dailySettlementCommandService.addCancellation(
                     saleRecord.getCourse().getCreator().getId(),
                     cancellation.getCanceledAt(),
                     cancellation.getRefundAmount()
