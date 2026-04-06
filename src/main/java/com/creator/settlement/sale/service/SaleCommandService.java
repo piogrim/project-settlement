@@ -11,6 +11,7 @@ import com.creator.settlement.sale.dto.RegisterSaleCancellationCommand;
 import com.creator.settlement.sale.dto.RegisterSaleCommand;
 import com.creator.settlement.sale.dto.SaleCancellationResult;
 import com.creator.settlement.sale.dto.SaleRecordResult;
+import com.creator.settlement.settlement.service.DailySettlementAggregateService;
 import com.creator.settlement.sale.repository.SaleRecordRepository;
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
@@ -29,6 +30,7 @@ public class SaleCommandService {
 
     private final CourseRepository courseRepository;
     private final SaleRecordRepository saleRecordRepository;
+    private final DailySettlementAggregateService dailySettlementAggregateService;
     private final KstClock kstClock;
 
     public SaleRecordResult registerSale(RegisterSaleCommand command) {
@@ -45,7 +47,14 @@ public class SaleCommandService {
                 .paidAt(command.paidAt())
                 .build();
 
-        return SaleRecordResult.from(saleRecordRepository.save(saleRecord));
+        SaleRecord savedSaleRecord = saleRecordRepository.save(saleRecord);
+        dailySettlementAggregateService.addSale(
+                course.getCreator().getId(),
+                savedSaleRecord.getPaidAt(),
+                savedSaleRecord.getAmount()
+        );
+
+        return SaleRecordResult.from(savedSaleRecord);
     }
 
     public SaleCancellationResult registerCancellation(RegisterSaleCancellationCommand command) {
@@ -67,6 +76,11 @@ public class SaleCommandService {
 
         saleRecord.addCancellation(cancellation);
         saleRecordRepository.save(saleRecord);
+        dailySettlementAggregateService.addCancellation(
+                saleRecord.getCourse().getCreator().getId(),
+                cancellation.getCanceledAt(),
+                cancellation.getRefundAmount()
+        );
 
         return SaleCancellationResult.from(cancellation, saleRecord.getTotalRefundAmount());
     }

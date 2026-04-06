@@ -4,10 +4,10 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-public record AdminSettlementSummaryResult(
+public record SettlementPeriodSummaryResult(
         LocalDate startDate,
         LocalDate endDate,
-        List<CreatorSettlementSummaryItem> items,
+        List<SettlementPeriodSummaryItem> items,
         BigDecimal totalSettlementAmount
 ) {
 }

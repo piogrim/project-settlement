@@ -1,31 +1,38 @@
 package com.creator.settlement.settlement.support;
 
-import com.creator.settlement.settlement.dto.response.CreatorSettlementSummaryItem;
+import com.creator.settlement.settlement.dto.response.SettlementPeriodSummaryItem;
 import java.math.BigDecimal;
 import java.time.YearMonth;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-public class AdminSettlementAccumulator {
+public class AdminSettlementQueryAccumulator {
 
     private final String creatorId;
     private final String creatorName;
     private final Map<YearMonth, MonthlySettlementAccumulator> monthlyAccumulators = new LinkedHashMap<>();
 
-    public AdminSettlementAccumulator(String creatorId, String creatorName) {
+    public AdminSettlementQueryAccumulator(String creatorId, String creatorName) {
         this.creatorId = creatorId;
         this.creatorName = creatorName;
     }
 
-    public void addSale(YearMonth settlementMonth, BigDecimal amount) {
-        monthlyAccumulator(settlementMonth).addSale(amount);
+    public void addMonthlyTotals(
+            YearMonth settlementMonth,
+            BigDecimal totalSalesAmount,
+            BigDecimal totalRefundAmount,
+            long saleCount,
+            long cancelCount
+    ) {
+        monthlyAccumulator(settlementMonth).addTotals(
+                totalSalesAmount,
+                totalRefundAmount,
+                saleCount,
+                cancelCount
+        );
     }
 
-    public void addCancellation(YearMonth settlementMonth, BigDecimal refundAmount) {
-        monthlyAccumulator(settlementMonth).addCancellation(refundAmount);
-    }
-
-    public CreatorSettlementSummaryItem toItem(
+    public SettlementPeriodSummaryItem toItem(
             SettlementCalculator settlementCalculator,
             SettlementFeeRateResolver settlementFeeRateResolver
     ) {
@@ -55,7 +62,7 @@ public class AdminSettlementAccumulator {
             cancelCount += amounts.cancelCount();
         }
 
-        return new CreatorSettlementSummaryItem(
+        return new SettlementPeriodSummaryItem(
                 creatorId,
                 creatorName,
                 totalSalesAmount,
@@ -78,14 +85,16 @@ public class AdminSettlementAccumulator {
         private long saleCount;
         private long cancelCount;
 
-        private void addSale(BigDecimal amount) {
-            totalSalesAmount = totalSalesAmount.add(amount);
-            saleCount++;
-        }
-
-        private void addCancellation(BigDecimal refundAmount) {
-            totalRefundAmount = totalRefundAmount.add(refundAmount);
-            cancelCount++;
+        private void addTotals(
+                BigDecimal totalSalesAmount,
+                BigDecimal totalRefundAmount,
+                long saleCount,
+                long cancelCount
+        ) {
+            this.totalSalesAmount = this.totalSalesAmount.add(totalSalesAmount);
+            this.totalRefundAmount = this.totalRefundAmount.add(totalRefundAmount);
+            this.saleCount += saleCount;
+            this.cancelCount += cancelCount;
         }
     }
 }

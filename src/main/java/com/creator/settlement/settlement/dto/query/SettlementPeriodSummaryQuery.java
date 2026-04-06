@@ -5,8 +5,8 @@ import jakarta.validation.constraints.NotNull;
 import java.time.LocalDate;
 
 @ValidDateRange(startField = "startDate", endField = "endDate")
-public record AdminSettlementSummaryQuery(
-        @NotNull(message = "시작일은 필수입니다.") LocalDate startDate,
-        @NotNull(message = "종료일은 필수입니다.") LocalDate endDate
+public record SettlementPeriodSummaryQuery(
+        @NotNull(message = "?쒖옉?쇱? ?꾩닔?낅땲??") LocalDate startDate,
+        @NotNull(message = "醫낅즺?쇱? ?꾩닔?낅땲??") LocalDate endDate
 ) {
 }

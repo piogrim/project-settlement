@@ -1,6 +1,6 @@
 package com.creator.settlement.settlement.service;
 
-import com.creator.settlement.settlement.dto.response.SettlementFeeRateResult;
+import com.creator.settlement.settlement.dto.response.SettlementFeeRateHistoryResult;
 import com.creator.settlement.settlement.repository.SettlementFeeRateRepository;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -14,9 +14,9 @@ public class SettlementFeeRateQueryService {
 
     private final SettlementFeeRateRepository settlementFeeRateRepository;
 
-    public List<SettlementFeeRateResult> getSettlementFeeRates() {
+    public List<SettlementFeeRateHistoryResult> getSettlementFeeRates() {
         return settlementFeeRateRepository.findAllByOrderByEffectiveFromDesc().stream()
-                .map(SettlementFeeRateResult::from)
+                .map(SettlementFeeRateHistoryResult::from)
                 .toList();
     }
 }

@@ -1,17 +1,13 @@
 package com.creator.settlement.settlement.service;
 
-import com.creator.settlement.common.time.KstClock;
-import com.creator.settlement.common.time.KstPeriodResolver;
 import com.creator.settlement.creator.domain.Creator;
 import com.creator.settlement.creator.repository.CreatorRepository;
-import com.creator.settlement.sale.domain.SaleCancellation;
-import com.creator.settlement.sale.domain.SaleRecord;
-import com.creator.settlement.sale.repository.SaleCancellationRepository;
-import com.creator.settlement.sale.repository.SaleRecordRepository;
-import com.creator.settlement.settlement.dto.query.AdminSettlementSummaryQuery;
-import com.creator.settlement.settlement.dto.response.AdminSettlementSummaryResult;
-import com.creator.settlement.settlement.dto.response.CreatorSettlementSummaryItem;
-import com.creator.settlement.settlement.support.AdminSettlementAccumulator;
+import com.creator.settlement.settlement.domain.DailySettlementAggregate;
+import com.creator.settlement.settlement.dto.query.SettlementPeriodSummaryQuery;
+import com.creator.settlement.settlement.dto.response.SettlementPeriodSummaryResult;
+import com.creator.settlement.settlement.dto.response.SettlementPeriodSummaryItem;
+import com.creator.settlement.settlement.repository.DailySettlementAggregateRepository;
+import com.creator.settlement.settlement.support.AdminSettlementQueryAccumulator;
 import com.creator.settlement.settlement.support.SettlementCalculator;
 import com.creator.settlement.settlement.support.SettlementFeeRateResolver;
 import jakarta.validation.Valid;
@@ -33,93 +29,72 @@ import org.springframework.validation.annotation.Validated;
 public class AdminSettlementQueryService {
 
     private final CreatorRepository creatorRepository;
-    private final SaleRecordRepository saleRecordRepository;
-    private final SaleCancellationRepository saleCancellationRepository;
+    private final DailySettlementAggregateRepository dailySettlementAggregateRepository;
     private final SettlementCalculator settlementCalculator;
     private final SettlementFeeRateResolver settlementFeeRateResolver;
-    private final KstPeriodResolver kstPeriodResolver;
-    private final KstClock kstClock;
 
-    public AdminSettlementSummaryResult getAdminSettlementSummary(
-            @NotNull @Valid AdminSettlementSummaryQuery query
+    public SettlementPeriodSummaryResult getAdminSettlementSummary(
+            @NotNull @Valid SettlementPeriodSummaryQuery query
     ) {
-        KstPeriodResolver.KstRange range =
-                kstPeriodResolver.dateRange(query.startDate(), query.endDate());
-        Map<String, AdminSettlementAccumulator> accumulators = initializeAccumulators(
+        Map<String, AdminSettlementQueryAccumulator> accumulators = initializeAccumulators(
                 creatorRepository.findAllByOrderByIdAsc()
         );
 
-        accumulateSales(accumulators, range);
-        accumulateCancellations(accumulators, range);
+        accumulateDailyAggregates(
+                accumulators,
+                dailySettlementAggregateRepository.findAllInAggregateDateRange(
+                        query.startDate(),
+                        query.endDate()
+                )
+        );
 
-        List<CreatorSettlementSummaryItem> items = buildSummaryItems(accumulators);
+        List<SettlementPeriodSummaryItem> items = buildSummaryItems(accumulators);
         BigDecimal totalSettlementAmount = calculateTotalSettlementAmount(items);
 
-        return new AdminSettlementSummaryResult(query.startDate(), query.endDate(), items, totalSettlementAmount);
+        return new SettlementPeriodSummaryResult(query.startDate(), query.endDate(), items, totalSettlementAmount);
     }
 
-    private Map<String, AdminSettlementAccumulator> initializeAccumulators(List<Creator> creators) {
-        Map<String, AdminSettlementAccumulator> accumulators = new LinkedHashMap<>();
+    private Map<String, AdminSettlementQueryAccumulator> initializeAccumulators(List<Creator> creators) {
+        Map<String, AdminSettlementQueryAccumulator> accumulators = new LinkedHashMap<>();
         for (Creator creator : creators) {
             accumulators.put(
                     creator.getId(),
-                    new AdminSettlementAccumulator(creator.getId(), creator.getName())
+                    new AdminSettlementQueryAccumulator(creator.getId(), creator.getName())
             );
         }
         return accumulators;
     }
 
-    private void accumulateSales(
-            Map<String, AdminSettlementAccumulator> accumulators,
-            KstPeriodResolver.KstRange range
+    private void accumulateDailyAggregates(
+            Map<String, AdminSettlementQueryAccumulator> accumulators,
+            List<DailySettlementAggregate> dailyAggregates
     ) {
-        List<SaleRecord> saleRecords = saleRecordRepository.findAllByPaidAtGreaterThanEqualAndPaidAtLessThan(
-                range.startAt(),
-                range.endExclusive()
-        );
-
-        for (SaleRecord saleRecord : saleRecords) {
-            String creatorId = saleRecord.getCourse().getCreator().getId();
-            AdminSettlementAccumulator accumulator = accumulators.get(creatorId);
+        for (DailySettlementAggregate dailyAggregate : dailyAggregates) {
+            String creatorId = dailyAggregate.getCreator().getId();
+            AdminSettlementQueryAccumulator accumulator = accumulators.get(creatorId);
             if (accumulator != null) {
-                accumulator.addSale(
-                        YearMonth.from(saleRecord.getPaidAt().atZoneSameInstant(kstClock.zoneId())),
-                        saleRecord.getAmount()
+                accumulator.addMonthlyTotals(
+                        YearMonth.from(dailyAggregate.getAggregateDate()),
+                        dailyAggregate.getTotalSalesAmount(),
+                        dailyAggregate.getTotalRefundAmount(),
+                        dailyAggregate.getSaleCount(),
+                        dailyAggregate.getCancelCount()
                 );
             }
         }
     }
 
-    private void accumulateCancellations(
-            Map<String, AdminSettlementAccumulator> accumulators,
-            KstPeriodResolver.KstRange range
-    ) {
-        List<SaleCancellation> saleCancellations = saleCancellationRepository
-                .findAllByCanceledAtGreaterThanEqualAndCanceledAtLessThan(range.startAt(), range.endExclusive());
-
-        for (SaleCancellation saleCancellation : saleCancellations) {
-            String creatorId = saleCancellation.getSaleRecord().getCourse().getCreator().getId();
-            AdminSettlementAccumulator accumulator = accumulators.get(creatorId);
-            if (accumulator != null) {
-                accumulator.addCancellation(
-                        YearMonth.from(saleCancellation.getCanceledAt().atZoneSameInstant(kstClock.zoneId())),
-                        saleCancellation.getRefundAmount()
-                );
-            }
-        }
-    }
-
-    private List<CreatorSettlementSummaryItem> buildSummaryItems(
-            Map<String, AdminSettlementAccumulator> accumulators
+    private List<SettlementPeriodSummaryItem> buildSummaryItems(
+            Map<String, AdminSettlementQueryAccumulator> accumulators
     ) {
         return accumulators.values().stream()
                 .map(accumulator -> accumulator.toItem(settlementCalculator, settlementFeeRateResolver))
                 .toList();
     }
 
-    private BigDecimal calculateTotalSettlementAmount(List<CreatorSettlementSummaryItem> items) {
+    private BigDecimal calculateTotalSettlementAmount(List<SettlementPeriodSummaryItem> items) {
         return items.stream()
-                .map(CreatorSettlementSummaryItem::settlementAmount)
+                .map(SettlementPeriodSummaryItem::settlementAmount)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 }

@@ -3,7 +3,7 @@ package com.creator.settlement.settlement.controller.admin;
 import com.creator.settlement.common.exception.InvalidRequestException;
 import com.creator.settlement.settlement.dto.request.CreateSettlementFeeRateRequest;
 import com.creator.settlement.settlement.dto.request.UpdateSettlementFeeRateRequest;
-import com.creator.settlement.settlement.dto.response.SettlementFeeRateResult;
+import com.creator.settlement.settlement.dto.response.SettlementFeeRateHistoryResult;
 import com.creator.settlement.settlement.service.SettlementFeeRateCommandService;
 import com.creator.settlement.settlement.service.SettlementFeeRateQueryService;
 import jakarta.validation.Valid;
@@ -30,22 +30,22 @@ public class AdminSettlementFeeRateController {
     private final SettlementFeeRateQueryService settlementFeeRateQueryService;
 
     @PostMapping
-    public ResponseEntity<SettlementFeeRateResult> registerSettlementFeeRate(
+    public ResponseEntity<SettlementFeeRateHistoryResult> registerSettlementFeeRate(
             @Valid @RequestBody CreateSettlementFeeRateRequest request
     ) {
-        SettlementFeeRateResult result = settlementFeeRateCommandService.registerSettlementFeeRate(
+        SettlementFeeRateHistoryResult result = settlementFeeRateCommandService.registerSettlementFeeRate(
                 request.toCommand(parseYearMonth(request.effectiveFrom()))
         );
         return ResponseEntity.status(HttpStatus.CREATED).body(result);
     }
 
     @GetMapping
-    public List<SettlementFeeRateResult> getSettlementFeeRates() {
+    public List<SettlementFeeRateHistoryResult> getSettlementFeeRates() {
         return settlementFeeRateQueryService.getSettlementFeeRates();
     }
 
     @PutMapping("/{settlementFeeRateId}")
-    public SettlementFeeRateResult updateSettlementFeeRate(
+    public SettlementFeeRateHistoryResult updateSettlementFeeRate(
             @PathVariable String settlementFeeRateId,
             @Valid @RequestBody UpdateSettlementFeeRateRequest request
     ) {
